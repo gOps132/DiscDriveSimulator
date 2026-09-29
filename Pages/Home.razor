@@ -1,7 +1,569 @@
-﻿@page "/"
+@page "/"
+@using DiscDriveSimulator.Models
+@using DiscDriveSimulator.Services
+@inject ISimulationService Sim
+@inject StorageService Storage
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Drive Disc Simulator</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="command-deck">
+    <!-- Top Control Bar -->
+    <section class="top-control-bar">
+        <div class="battery-row">
+            <div class="battery-input-group">
+                <label for="batteryInput">Battery:</label>
+                <input id="batteryInput" type="number" class="battery-input"
+                       @bind="batteryInput" min="60" step="60" />
+            </div>
 
-Welcome to your new app.
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline" @onclick="() => AddBattery(60)">+60 (1 Run)</button>
+                <button type="button" class="btn btn-outline" @onclick="() => AddBattery(2100)">+1W (2,100)</button>
+                <button type="button" class="btn btn-outline" @onclick="() => AddBattery(9000)">+1M (9,000)</button>
+                <button type="button" class="btn btn-outline" @onclick="() => AddBattery(27000)">+3M (27,000)</button>
+            </div>
+
+            <button type="button" class="btn btn-primary" @onclick="RunSimulation">
+                RUN SIMULATION (@((batteryInput / 60)) runs)
+            </button>
+
+            <div class="top-bar-right">
+                <label for="hifiInput">Hi-Fi Copies:</label>
+                <input id="hifiInput" type="number" style="width: 75px;"
+                       value="@Sim.State.HiFiMasterCopies"
+                       @onchange="OnHiFiCopiesChanged" min="0" />
+
+                <button type="button" class="btn btn-danger" @onclick="ResetAll">
+                    Clear / Reset
+                </button>
+            </div>
+        </div>
+
+        <div class="stats-summary-bar">
+            <div class="stat-pills">
+                <span class="stat-pill">Runs: <strong>@Sim.State.TotalRuns</strong></span>
+                <span class="stat-pill">Battery Spent: <strong>@Sim.State.TotalBatterySpent</strong></span>
+                <span class="stat-pill">Drops: <strong>@Sim.State.TotalDiscsDropped</strong></span>
+                <span class="stat-pill">Dismantled: <strong>@Sim.State.TotalDiscsDismantled</strong></span>
+                <span class="stat-pill">Crafted: <strong>@Sim.State.TotalDiscsCrafted</strong></span>
+                <span class="stat-pill">Inventory Kept: <strong>@Sim.State.Inventory.Count</strong></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3-Column Deck Body -->
+    <div class="deck-columns">
+        <!-- Left Column: Filters, Rules & Bardic Needle -->
+        <aside class="deck-panel col-filters">
+            <h2 class="panel-title">Controls &amp; Filters</h2>
+
+            <!-- Desired Stats for RV -->
+            <div class="filter-section">
+                <label>Desired Substats (for RV scoring):</label>
+                <div class="checkbox-group">
+                    @foreach (var stat in SimulationConfig.SubstatPool)
+                    {
+                        var isChecked = Sim.State.DesiredStats.Contains(stat);
+                        <label class="checkbox-item" for="stat_@stat">
+                            <input type="checkbox" id="stat_@stat"
+                                   checked="@isChecked"
+                                   @onchange="(e) => ToggleDesiredStat(stat, e)" />
+                            <span>@Disc.FormatStatName(stat)</span>
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <!-- Automation Rules -->
+            <div class="filter-section">
+                <label>Automation on Run:</label>
+                <label class="toggle-option" for="autoDismantle">
+                    <input type="checkbox" id="autoDismantle"
+                           @bind="Sim.State.AutoDismantleOnSim" @bind:after="SaveState" />
+                    <span>Auto-dismantle non-matching</span>
+                </label>
+
+                <label class="toggle-option" for="autoCraft">
+                    <input type="checkbox" id="autoCraft"
+                           @bind="Sim.State.AutoCraftOnSim" @bind:after="SaveState" />
+                    <span>Auto-craft target partition</span>
+                </label>
+
+                @if (Sim.State.AutoCraftOnSim)
+                {
+                    <div class="inline-select-group">
+                        <span>Auto Slot:</span>
+                        <select @bind="Sim.State.AutoCraftPartition" @bind:after="SaveState">
+                            @for (int i = 1; i <= 6; i++)
+                            {
+                                <option value="@i">Partition @i</option>
+                            }
+                        </select>
+                    </div>
+                }
+            </div>
+
+            <!-- Bardic Needle Workshop -->
+            <div class="bardic-needle-box">
+                <div class="bardic-needle-header">
+                    <span>Bardic Needle</span>
+                    <span class="badge badge-yellow">@Sim.State.HiFiMasterCopies Copies</span>
+                </div>
+
+                <div class="inline-select-group">
+                    <span>Target:</span>
+                    <select @bind="Sim.State.SelectedCraftPartition" @bind:after="SaveState">
+                        @for (int i = 1; i <= 6; i++)
+                        {
+                            <option value="@i">Partition @i</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="btn-group btn-full">
+                    <button type="button" class="btn btn-outline flex-fill"
+                            disabled="@(Sim.State.HiFiMasterCopies < 6)"
+                            @onclick="() => CraftDiscs(1)">Craft 1x</button>
+                    <button type="button" class="btn btn-outline flex-fill"
+                            disabled="@(Sim.State.HiFiMasterCopies < 60)"
+                            @onclick="() => CraftDiscs(10)">Craft 10x</button>
+                    <button type="button" class="btn btn-outline flex-fill"
+                            disabled="@(Sim.State.HiFiMasterCopies < 6)"
+                            @onclick="CraftMaxDiscs">Craft Max</button>
+                </div>
+            </div>
+
+            <!-- Inventory Filters -->
+            <div class="filter-section">
+                <label for="slotFilter">Partition (Slot):</label>
+                <select id="slotFilter"
+                        value="@(Sim.State.FilterPartition?.ToString() ?? "")"
+                        @onchange="OnPartitionFilterChanged">
+                    <option value="">All Partitions (1-6)</option>
+                    @for (int i = 1; i <= 6; i++)
+                    {
+                        <option value="@i">Partition @i</option>
+                    }
+                </select>
+            </div>
+
+            <div class="filter-section">
+                <label for="setFilter">Disc Set:</label>
+                <select id="setFilter"
+                        value="@(Sim.State.FilterSet?.ToString() ?? "")"
+                        @onchange="OnSetFilterChanged">
+                    <option value="">All Sets</option>
+                    <option value="@DiscSet.SetAlpha">Set Alpha</option>
+                    <option value="@DiscSet.SetBeta">Set Beta</option>
+                </select>
+            </div>
+
+            <div class="filter-section">
+                <label for="mainStatFilter">Main Stat:</label>
+                <select id="mainStatFilter"
+                        value="@(Sim.State.FilterMainStat?.ToString() ?? "")"
+                        @onchange="OnMainStatFilterChanged">
+                    <option value="">All Main Stats</option>
+                    @foreach (var stat in Enum.GetValues<StatType>())
+                    {
+                        <option value="@stat">@Disc.FormatStatName(stat)</option>
+                    }
+                </select>
+            </div>
+
+            <div class="filter-section">
+                <div class="filter-section-header">
+                    <label>Min Roll Value (RV):</label>
+                    <span class="badge badge-gray">@Sim.State.MinRv hits</span>
+                </div>
+                <input type="range" min="0" max="4" step="1"
+                       @bind="Sim.State.MinRv" @bind:after="SaveState" />
+            </div>
+
+            <div class="filter-section">
+                <div class="filter-section-header">
+                    <label for="minCvInput">Min Crit Value (CV):</label>
+                    <span class="badge badge-gray">@Sim.State.MinCv</span>
+                </div>
+                <input id="minCvInput" type="number" min="0" max="100" step="1"
+                       @bind="Sim.State.MinCv" @bind:after="SaveState" />
+            </div>
+
+            <div class="filter-section">
+                <label for="sortOrderSelect">Sort By:</label>
+                <select id="sortOrderSelect" @bind="Sim.State.CurrentSort" @bind:after="SaveState">
+                    <option value="@SortOrder.HighestCv">Highest CV</option>
+                    <option value="@SortOrder.HighestRv">Highest RV</option>
+                    <option value="@SortOrder.PartitionAsc">Partition (1 to 6)</option>
+                    <option value="@SortOrder.PartitionDesc">Partition (6 to 1)</option>
+                    <option value="@SortOrder.Newest">Newest First</option>
+                </select>
+            </div>
+
+            <!-- Manual Bulk Dismantle Actions -->
+            <div class="bulk-actions-section">
+                <button type="button" class="btn btn-warning btn-full"
+                        disabled="@(!HasSelectedDiscs)"
+                        @onclick="DismantleSelectedDiscs">
+                    Dismantle Selected (@SelectedDiscsCount)
+                </button>
+                <button type="button" class="btn btn-danger btn-full"
+                        disabled="@(Sim.State.Inventory.Count == 0)"
+                        @onclick="DismantleNonMatchingDiscs">
+                    Dismantle All Non-Matching
+                </button>
+            </div>
+        </aside>
+
+        <!-- Center Column: Disc Grid -->
+        <main class="deck-panel col-grid">
+            @{
+                var filteredList = Sim.GetFilteredDiscs();
+            }
+
+            <div class="grid-controls-bar">
+                <div>
+                    <strong>Inventory</strong>
+                    <span style="color: #6b7280; margin-left: 0.5rem;">(Showing @filteredList.Count of @Sim.State.Inventory.Count)</span>
+                </div>
+
+                <div class="grid-selection-links">
+                    <button type="button" class="btn btn-link" @onclick="() => SetAllSelected(filteredList, true)">Select All</button>
+                    <span style="color: #d1d5db;">|</span>
+                    <button type="button" class="btn btn-link" @onclick="() => SetAllSelected(Sim.State.Inventory, false)">Deselect All</button>
+                </div>
+            </div>
+
+            @if (filteredList.Count == 0)
+            {
+                <div class="empty-state">
+                    @if (Sim.State.Inventory.Count == 0)
+                    {
+                        <p>No discs in inventory yet. Set battery above and click <strong>RUN SIMULATION</strong>.</p>
+                    }
+                    else
+                    {
+                        <p>No discs match your active filters. Try lowering minimum RV/CV or clearing slot filters.</p>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="disc-grid">
+                    @foreach (var disc in filteredList)
+                    {
+                        var isInspected = inspectedDisc?.Id == disc.Id;
+                        var cv = disc.GetCritValue();
+                        var rv = disc.GetRollValue(Sim.State.DesiredStats);
+
+                        <div class="disc-card @(disc.IsSelected ? "selected" : "") @(isInspected ? "active-inspect" : "")"
+                             @onclick="() => SelectDiscForInspect(disc)">
+
+                            <div class="disc-card-header" @onclick:stopPropagation="true">
+                                <div class="card-header-left">
+                                    <input type="checkbox"
+                                           @bind="disc.IsSelected" />
+                                    <span class="partition-tag">Slot @disc.Partition</span>
+                                </div>
+
+                                <div class="card-header-right">
+                                    <span class="set-tag">@(disc.Set == DiscSet.SetAlpha ? "Set A" : "Set B")</span>
+                                    <button type="button" class="lock-btn"
+                                            title="@(disc.IsLocked ? "Locked" : "Unlocked")"
+                                            @onclick="() => ToggleLock(disc)">
+                                        @(disc.IsLocked ? "🔒" : "🔓")
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="main-stat-badge">
+                                @Disc.FormatStatName(disc.MainStat) +@Disc.FormatStatValue(disc.MainStat, disc.MainStatValue)
+                            </div>
+
+                            <ul class="substats-list">
+                                @foreach (var sub in disc.Substats)
+                                {
+                                    var isDesired = Sim.State.DesiredStats.Contains(sub.Stat);
+                                    <li class="substat-item @(isDesired ? "is-desired" : "")">
+                                        <span>@(isDesired ? "★ " : "• ")@Disc.FormatStatName(sub.Stat)</span>
+                                        <span>+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
+                                    </li>
+                                }
+                            </ul>
+
+                            <div class="card-score-footer">
+                                <span class="cv-badge">CV @cv</span>
+                                <span class="rv-badge">RV @rv hits</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </main>
+
+        <!-- Right Column: Inspector -->
+        <aside class="deck-panel col-inspector">
+            <h2 class="panel-title">Disc Inspector</h2>
+
+            @if (inspectedDisc == null)
+            {
+                <div class="empty-state">
+                    <p>Click any disc card in the inventory to inspect its details and roll breakdown.</p>
+                </div>
+            }
+            else
+            {
+                <div class="inspector-card">
+                    <div class="inspector-meta">
+                        <div>
+                            <strong>Partition @inspectedDisc.Partition</strong>
+                            <span style="color: #6b7280; margin-left: 0.25rem;">(@(inspectedDisc.Set == DiscSet.SetAlpha ? "Set Alpha" : "Set Beta"))</span>
+                        </div>
+                        <div>
+                            @if (inspectedDisc.IsCrafted)
+                            {
+                                <span class="badge badge-yellow">Crafted</span>
+                            }
+                            <span class="badge badge-gray">@inspectedDisc.InitialSubstatCount Subs</span>
+                        </div>
+                    </div>
+
+                    <div class="inspector-main-stat">
+                        <div class="label">Main Stat</div>
+                        <div class="val">
+                            @Disc.FormatStatName(inspectedDisc.MainStat)
+                            <span>+@Disc.FormatStatValue(inspectedDisc.MainStat, inspectedDisc.MainStatValue)</span>
+                        </div>
+                    </div>
+
+                    <div class="inspector-scores">
+                        <div class="score-box cv-box">
+                            <div class="s-label">CRIT VALUE (CV)</div>
+                            <div class="s-val">@inspectedDisc.GetCritValue()</div>
+                        </div>
+                        <div class="score-box rv-box">
+                            <div class="s-label">ROLL VALUE (RV)</div>
+                            <div class="s-val">@inspectedDisc.GetRollValue(Sim.State.DesiredStats) / 4</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label style="font-weight: 600; font-size: 0.8rem; margin-bottom: 0.35rem; display: block;">Substat Breakdown:</label>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Stat</th>
+                                    <th>Value</th>
+                                    <th>Desired</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sub in inspectedDisc.Substats)
+                                {
+                                    var isDesired = Sim.State.DesiredStats.Contains(sub.Stat);
+                                    <tr class="@(isDesired ? "highlighted" : "")">
+                                        <td>@Disc.FormatStatName(sub.Stat)</td>
+                                        <td>+@Disc.FormatStatValue(sub.Stat, sub.Value)</td>
+                                        <td>@(isDesired ? "Yes" : "-")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="formula-card">
+                        <strong>CV Formula:</strong>
+                        <span>(CR% × 2) + CD% @(inspectedDisc.Partition == 4 && (inspectedDisc.MainStat == StatType.CritRate || inspectedDisc.MainStat == StatType.CritDmg) ? "+ Slot 4 Main CR/CD" : "")</span>
+                    </div>
+
+                    <div class="inspector-actions">
+                        <button type="button" class="btn btn-outline flex-fill"
+                                @onclick="() => ToggleLock(inspectedDisc)">
+                            @(inspectedDisc.IsLocked ? "Unlock Disc" : "Lock Disc")
+                        </button>
+                        <button type="button" class="btn btn-danger flex-fill"
+                                disabled="@inspectedDisc.IsLocked"
+                                @onclick="() => DismantleSingleDisc(inspectedDisc)">
+                            Dismantle (+1 Copy)
+                        </button>
+                    </div>
+                </div>
+            }
+        </aside>
+    </div>
+</div>
+
+@code {
+    private int batteryInput = 300;
+    private Disc? inspectedDisc;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Sim.OnChange += StateHasChanged;
+
+        var savedState = await Storage.LoadStateAsync();
+        if (savedState != null)
+        {
+            Sim.SetState(savedState);
+            inspectedDisc = Sim.State.Inventory.FirstOrDefault();
+        }
+    }
+
+    private void AddBattery(int amount)
+    {
+        batteryInput += amount;
+    }
+
+    private async Task RunSimulation()
+    {
+        if (batteryInput < SimulationConfig.BatteryPerRun) return;
+
+        Sim.RunSimulation(batteryInput);
+
+        if (inspectedDisc == null || !Sim.State.Inventory.Contains(inspectedDisc))
+        {
+            inspectedDisc = Sim.State.Inventory.FirstOrDefault();
+        }
+
+        await SaveState();
+    }
+
+    private async Task CraftDiscs(int count)
+    {
+        var craftedCount = Sim.CraftMultiple(Sim.State.SelectedCraftPartition, count);
+        if (craftedCount > 0)
+        {
+            inspectedDisc = Sim.State.Inventory.LastOrDefault();
+            await SaveState();
+        }
+    }
+
+    private async Task CraftMaxDiscs()
+    {
+        var craftedCount = Sim.CraftMax(Sim.State.SelectedCraftPartition);
+        if (craftedCount > 0)
+        {
+            inspectedDisc = Sim.State.Inventory.LastOrDefault();
+            await SaveState();
+        }
+    }
+
+    private async Task DismantleSingleDisc(Disc disc)
+    {
+        if (Sim.DismantleDisc(disc))
+        {
+            if (inspectedDisc?.Id == disc.Id)
+            {
+                inspectedDisc = Sim.GetFilteredDiscs().FirstOrDefault();
+            }
+            await SaveState();
+        }
+    }
+
+    private async Task DismantleSelectedDiscs()
+    {
+        var selected = Sim.State.Inventory.Where(d => d.IsSelected && !d.IsLocked).ToList();
+        if (selected.Count > 0)
+        {
+            Sim.DismantleDiscs(selected);
+            if (inspectedDisc != null && selected.Any(d => d.Id == inspectedDisc.Id))
+            {
+                inspectedDisc = Sim.GetFilteredDiscs().FirstOrDefault();
+            }
+            await SaveState();
+        }
+    }
+
+    private async Task DismantleNonMatchingDiscs()
+    {
+        int dismantled = Sim.DismantleNonMatching();
+        if (dismantled > 0)
+        {
+            inspectedDisc = Sim.GetFilteredDiscs().FirstOrDefault();
+            await SaveState();
+        }
+    }
+
+    private void SelectDiscForInspect(Disc disc)
+    {
+        inspectedDisc = disc;
+    }
+
+    private async Task ToggleLock(Disc disc)
+    {
+        disc.IsLocked = !disc.IsLocked;
+        await SaveState();
+    }
+
+    private void SetAllSelected(IEnumerable<Disc> list, bool selected)
+    {
+        foreach (var d in list)
+        {
+            d.IsSelected = selected;
+        }
+    }
+
+    private bool HasSelectedDiscs => Sim.State.Inventory.Any(d => d.IsSelected && !d.IsLocked);
+    private int SelectedDiscsCount => Sim.State.Inventory.Count(d => d.IsSelected && !d.IsLocked);
+
+    private async Task ToggleDesiredStat(StatType stat, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        if (isChecked)
+        {
+            Sim.State.DesiredStats.Add(stat);
+        }
+        else
+        {
+            Sim.State.DesiredStats.Remove(stat);
+        }
+        await SaveState();
+    }
+
+    private async Task OnPartitionFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        Sim.State.FilterPartition = string.IsNullOrEmpty(val) ? null : int.Parse(val);
+        await SaveState();
+    }
+
+    private async Task OnSetFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        Sim.State.FilterSet = string.IsNullOrEmpty(val) ? null : Enum.Parse<DiscSet>(val);
+        await SaveState();
+    }
+
+    private async Task OnMainStatFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        Sim.State.FilterMainStat = string.IsNullOrEmpty(val) ? null : Enum.Parse<StatType>(val);
+        await SaveState();
+    }
+
+    private async Task OnHiFiCopiesChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int val))
+        {
+            Sim.State.HiFiMasterCopies = Math.Max(0, val);
+            await SaveState();
+        }
+    }
+
+    private async Task ResetAll()
+    {
+        Sim.Reset();
+        inspectedDisc = null;
+        await Storage.ClearStateAsync();
+    }
+
+    private async Task SaveState()
+    {
+        await Storage.SaveStateAsync(Sim.State);
+    }
+
+    public void Dispose()
+    {
+        Sim.OnChange -= StateHasChanged;
+    }
+}
