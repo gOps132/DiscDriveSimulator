@@ -1,0 +1,59 @@
+namespace DiscDriveSimulator.Models;
+
+public enum SortOrder
+{
+    HighestCv,
+    HighestRv,
+    PartitionAsc,
+    PartitionDesc,
+    Newest
+}
+
+public class SimulationState
+{
+    // Counters
+    public int TotalRuns { get; set; }
+    public int TotalBatterySpent { get; set; }
+    public int TotalDiscsDropped { get; set; }
+    public int TotalDiscsDismantled { get; set; }
+    public int TotalDiscsCrafted { get; set; }
+
+    // Inventory & Currency
+    public int HiFiMasterCopies { get; set; } = 0;
+    public List<Disc> Inventory { get; set; } = new();
+
+    // Automation Settings
+    public bool AutoDismantleOnSim { get; set; } = false;
+    public bool AutoCraftOnSim { get; set; } = false;
+    public int AutoCraftPartition { get; set; } = 4;
+
+    // Crafting target in Bardic Needle
+    public int SelectedCraftPartition { get; set; } = 4;
+
+    // Desired Substats for RV
+    public HashSet<StatType> DesiredStats { get; set; } = new()
+    {
+        StatType.CritRate,
+        StatType.CritDmg,
+        StatType.ATKPercent
+    };
+
+    // Filter controls
+    public int? FilterPartition { get; set; } = null;
+    public DiscSet? FilterSet { get; set; } = null;
+    public StatType? FilterMainStat { get; set; } = null;
+    public int MinRv { get; set; } = 0;
+    public double MinCv { get; set; } = 0;
+    public SortOrder CurrentSort { get; set; } = SortOrder.HighestCv;
+
+    public void Reset()
+    {
+        TotalRuns = 0;
+        TotalBatterySpent = 0;
+        TotalDiscsDropped = 0;
+        TotalDiscsDismantled = 0;
+        TotalDiscsCrafted = 0;
+        HiFiMasterCopies = 0;
+        Inventory.Clear();
+    }
+}
