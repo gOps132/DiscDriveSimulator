@@ -1,16 +1,11 @@
-/* ==========================================================================
-   ZENLESS ZONE ZERO - DISC DRIVE SIMULATOR
-   100% PURE VANILLA CSS - MODULAR STYLESHEET ENTRY POINT
-   ========================================================================== */
-
-/* 1. Global Reset, Fonts, and Viewport Shell */
+/* Global Reset, Fonts, and Viewport Shell */
 @import url('base.css');
 
-/* 2. Screen 1: Bardic Needle Tuning Room & Circular Drive Bay Console */
+/* Bardic Needle Tuning Room & Circular Drive Bay Console */
 @import url('tuning.css');
 
-/* 3. Screen 2: "Obtain" S-Rank Drop Modal */
+/* "Obtain" S-Rank Drop Modal */
 @import url('obtain-modal.css');
 
-/* 4. Screen 3: Dedicated Storage & Inventory Management Modal */
+/* Dedicated Storage & Inventory Management Modal */
 @import url('storage-modal.css');
