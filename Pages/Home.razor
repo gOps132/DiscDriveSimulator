@@ -205,12 +205,240 @@
     </div>
 }
 
+<!-- ==========================================================================
+     STORAGE & INVENTORY MODAL
+     ========================================================================== -->
+@if (showStorageModal)
+{
+    var filteredDiscs = Sim.GetFilteredDiscs();
+    var nonMatchingCount = Sim.State.Inventory.Count(d => !d.IsLocked && !Sim.MatchesFilter(d));
+    var selectedCount = Sim.State.Inventory.Count(d => d.IsSelected && !d.IsLocked);
+
+    <div class="modal-backdrop-overlay" @onclick="CloseStorageModal">
+        <div class="storage-modal-window" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="storage-header">
+                <div class="storage-header-left">
+                    <img src="assets/Icon_Storage.webp" alt="Storage" class="storage-title-icon" />
+                    <span class="storage-title">Drive Disc Storage</span>
+                    <span class="storage-count-pill">@filteredDiscs.Count / @Sim.State.Inventory.Count</span>
+                </div>
+                <button type="button" class="obtain-close-btn" @onclick="CloseStorageModal" title="Close">
+                    <img src="assets/IconCancel.png" alt="Close" />
+                </button>
+            </div>
+
+            <!-- Filter & Action Toolbar -->
+            <div class="storage-toolbar">
+                <div class="storage-filters-row">
+                    <!-- Partition Filter Pills -->
+                    <div class="filter-pill-group">
+                        <span class="filter-label">Partition:</span>
+                        <button type="button" class="filter-pill @(Sim.State.FilterPartition == null ? "active" : "")"
+                                @onclick="() => SetPartitionFilter(null)">All</button>
+                        @for (int p = 1; p <= 6; p++)
+                        {
+                            var part = p;
+                            <button type="button" class="filter-pill @(Sim.State.FilterPartition == part ? "active" : "")"
+                                    @onclick="() => SetPartitionFilter(part)">@part</button>
+                        }
+                    </div>
+
+                    <!-- Set Filter -->
+                    <div class="filter-pill-group">
+                        <span class="filter-label">Set:</span>
+                        <select class="storage-select" value="@(Sim.State.FilterSet?.ToString() ?? "")" @onchange="OnSetFilterChanged">
+                            <option value="">All Sets</option>
+                            <option value="@DiscSet.SetAlpha">Set Alpha</option>
+                            <option value="@DiscSet.SetBeta">Set Beta</option>
+                        </select>
+                    </div>
+
+                    <!-- Lock Filter -->
+                    <div class="filter-pill-group">
+                        <span class="filter-label">Lock:</span>
+                        <button type="button" class="filter-pill @(Sim.State.FilterLock == null ? "active" : "")"
+                                @onclick="() => SetLockFilter(null)">All</button>
+                        <button type="button" class="filter-pill @(Sim.State.FilterLock == true ? "active" : "")"
+                                @onclick="() => SetLockFilter(true)">Locked</button>
+                        <button type="button" class="filter-pill @(Sim.State.FilterLock == false ? "active" : "")"
+                                @onclick="() => SetLockFilter(false)">Unlocked</button>
+                    </div>
+
+                    <!-- Sort Dropdown -->
+                    <div class="filter-pill-group">
+                        <span class="filter-label">Sort:</span>
+                        <select class="storage-select" value="@Sim.State.CurrentSort" @onchange="OnSortChanged">
+                            <option value="@SortOrder.HighestCv">Highest CV</option>
+                            <option value="@SortOrder.HighestRv">Highest RV</option>
+                            <option value="@SortOrder.PartitionAsc">Partition (1 → 6)</option>
+                            <option value="@SortOrder.PartitionDesc">Partition (6 → 1)</option>
+                            <option value="@SortOrder.Newest">Newest</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Batch Actions Row -->
+                <div class="storage-actions-row">
+                    <div class="batch-select-btns">
+                        <button type="button" class="btn-storage-tool" @onclick="SelectAllUnlocked">Select All</button>
+                        <button type="button" class="btn-storage-tool" @onclick="DeselectAll">Deselect All</button>
+                    </div>
+
+                    <div class="batch-dismantle-btns">
+                        <button type="button" class="btn-storage-dismantle"
+                                disabled="@(selectedCount == 0)"
+                                @onclick="DismantleSelectedDiscs">
+                            Dismantle Selected (@selectedCount)
+                        </button>
+                        <button type="button" class="btn-storage-dismantle warning"
+                                disabled="@(nonMatchingCount == 0)"
+                                @onclick="DismantleNonMatchingDiscs">
+                            Dismantle Non-Matching (@nonMatchingCount)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage Body: Grid on Left, Inspector on Right -->
+            <div class="storage-body">
+                <!-- Left Grid -->
+                <div class="storage-grid-container">
+                    @if (filteredDiscs.Count == 0)
+                    {
+                        <div class="storage-empty-state">
+                            <img src="assets/Icon_Storage.webp" alt="Empty" class="empty-icon" />
+                            <p class="empty-text">No Drive Discs found in storage.</p>
+                            <span class="empty-sub">Tune partitions on the console or run cleanup simulations.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="storage-disc-grid">
+                            @foreach (var disc in filteredDiscs)
+                            {
+                                var isInspected = inspectedStorageDisc?.Id == disc.Id;
+                                <div class="storage-disc-card @(isInspected ? "inspected" : "") @(disc.IsSelected ? "batch-selected" : "")"
+                                     @onclick="() => SelectStorageDisc(disc)">
+                                    <!-- Card Header: Checkbox & Lock Icon -->
+                                    <div class="disc-card-topbar">
+                                        <input type="checkbox"
+                                               class="disc-batch-checkbox"
+                                               checked="@disc.IsSelected"
+                                               disabled="@disc.IsLocked"
+                                               @onclick:stopPropagation="true"
+                                               @onchange="(e) => ToggleDiscSelection(disc, e)" />
+                                        @if (disc.IsLocked)
+                                        {
+                                            <img src="assets/Icon_Locked_03.png" alt="Locked" class="disc-lock-indicator" />
+                                        }
+                                    </div>
+
+                                    <!-- Disc Vinyl Art -->
+                                    <div class="storage-disc-vinyl-box">
+                                        <img src="assets/IconMessageRoleCircle19.png" alt="Disc" class="disc-vinyl-img" />
+                                        <span class="disc-slot-badge">@disc.Partition</span>
+                                        <img src="assets/Icon_Item_Rank_S.webp" alt="S-Rank" class="disc-rank-badge" />
+                                    </div>
+
+                                    <!-- Main Stat Snippet -->
+                                    <div class="disc-card-mainstat">
+                                        @Disc.FormatStatName(disc.MainStat)
+                                    </div>
+
+                                    <!-- CV / RV Badges -->
+                                    <div class="disc-card-scores">
+                                        <span class="score-cv-chip">CV @disc.GetCritValue().ToString("0.#")</span>
+                                        <span class="score-rv-chip">RV @disc.GetRollValue(Sim.State.DesiredStats)/4</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Right Inspector -->
+                <div class="storage-inspector-panel">
+                    @if (inspectedStorageDisc != null)
+                    {
+                        <div class="inspector-card-inner">
+                            <div class="inspector-header">
+                                <div>
+                                    <div class="inspector-disc-title">Partition @inspectedStorageDisc.Partition Disc</div>
+                                    <div class="inspector-disc-set">@inspectedStorageDisc.Set</div>
+                                </div>
+                                <button type="button" class="btn-quick-lock" @onclick="() => ToggleLock(inspectedStorageDisc)"
+                                        title="@(inspectedStorageDisc.IsLocked ? "Unlock Disc" : "Lock Disc")">
+                                    <img src="@(inspectedStorageDisc.IsLocked ? "assets/Icon_Locked_03.png" : "assets/Icon_Locked_05.png")"
+                                         alt="Lock" class="lock-toggle-img" />
+                                </button>
+                            </div>
+
+                            <div class="inspector-main-stat">
+                                <div class="main-stat-label">Main Stat</div>
+                                <div class="main-stat-value">
+                                    @Disc.FormatStatName(inspectedStorageDisc.MainStat)
+                                    <span class="stat-num">+@Disc.FormatStatValue(inspectedStorageDisc.MainStat, inspectedStorageDisc.MainStatValue)</span>
+                                </div>
+                            </div>
+
+                            <div class="inspector-substats-box">
+                                <div class="substats-header-bar">
+                                    <span>Substats (@inspectedStorageDisc.Substats.Count)</span>
+                                    <span class="desired-legend">★ Desired</span>
+                                </div>
+                                <ul class="inspector-substats-list">
+                                    @foreach (var sub in inspectedStorageDisc.Substats)
+                                    {
+                                        var isDesired = Sim.State.DesiredStats.Contains(sub.Stat);
+                                        <li class="inspector-substat-item @(isDesired ? "desired" : "")">
+                                            <span class="substat-name">@(isDesired ? "★ " : "• ")@Disc.FormatStatName(sub.Stat)</span>
+                                            <span class="substat-val">+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+
+                            <div class="inspector-scores-block">
+                                <div class="score-metric">
+                                    <span class="metric-label">CRIT VALUE</span>
+                                    <span class="metric-num">@inspectedStorageDisc.GetCritValue().ToString("0.0")</span>
+                                </div>
+                                <div class="score-metric">
+                                    <span class="metric-label">ROLL VALUE</span>
+                                    <span class="metric-num">@inspectedStorageDisc.GetRollValue(Sim.State.DesiredStats) / 4</span>
+                                </div>
+                            </div>
+
+                            <div class="inspector-actions-block">
+                                <button type="button" class="btn-inspector-action danger"
+                                        disabled="@inspectedStorageDisc.IsLocked"
+                                        @onclick="() => DismantleSingleDisc(inspectedStorageDisc)">
+                                    <span>Dismantle (+1 Copy)</span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="inspector-empty">
+                            <span>Select a disc to inspect</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private ElementReference tuningScreenRef;
     private int selectedPartition = 4;
     private bool showObtainModal = false;
+    private bool showStorageModal = false;
     private List<Disc> modalDiscs = new();
     private Disc? inspectedModalDisc;
+    private Disc? inspectedStorageDisc;
 
     protected override async Task OnInitializedAsync()
     {
@@ -253,9 +481,10 @@
         {
             SelectPartition(num);
         }
-        else if (e.Key == "Escape" && showObtainModal)
+        else if (e.Key == "Escape")
         {
-            CloseObtainModal();
+            if (showObtainModal) CloseObtainModal();
+            else if (showStorageModal) CloseStorageModal();
         }
     }
 
@@ -284,9 +513,127 @@
 
     private void OpenStorageModal()
     {
-        modalDiscs = Sim.State.Inventory.ToList();
-        inspectedModalDisc = modalDiscs.FirstOrDefault();
-        showObtainModal = true;
+        showStorageModal = true;
+        var filtered = Sim.GetFilteredDiscs();
+        inspectedStorageDisc = filtered.FirstOrDefault() ?? Sim.State.Inventory.FirstOrDefault();
+    }
+
+    private void CloseStorageModal()
+    {
+        showStorageModal = false;
+    }
+
+    private void SelectStorageDisc(Disc disc)
+    {
+        inspectedStorageDisc = disc;
+    }
+
+    private void ToggleDiscSelection(Disc disc, ChangeEventArgs e)
+    {
+        disc.IsSelected = (bool)(e.Value ?? false);
+    }
+
+    private void SelectAllUnlocked()
+    {
+        var filtered = Sim.GetFilteredDiscs();
+        foreach (var d in filtered.Where(x => !x.IsLocked))
+        {
+            d.IsSelected = true;
+        }
+    }
+
+    private void DeselectAll()
+    {
+        foreach (var d in Sim.State.Inventory)
+        {
+            d.IsSelected = false;
+        }
+    }
+
+    private async Task DismantleSelectedDiscs()
+    {
+        var selected = Sim.State.Inventory.Where(d => d.IsSelected && !d.IsLocked).ToList();
+        if (selected.Count > 0)
+        {
+            Sim.DismantleDiscs(selected);
+            var filtered = Sim.GetFilteredDiscs();
+            if (inspectedStorageDisc != null && !filtered.Contains(inspectedStorageDisc))
+            {
+                inspectedStorageDisc = filtered.FirstOrDefault();
+            }
+            await SaveState();
+        }
+    }
+
+    private async Task DismantleNonMatchingDiscs()
+    {
+        int dismantled = Sim.DismantleNonMatching();
+        if (dismantled > 0)
+        {
+            var filtered = Sim.GetFilteredDiscs();
+            if (inspectedStorageDisc != null && !filtered.Contains(inspectedStorageDisc))
+            {
+                inspectedStorageDisc = filtered.FirstOrDefault();
+            }
+            await SaveState();
+        }
+    }
+
+    private async Task DismantleSingleDisc(Disc disc)
+    {
+        if (Sim.DismantleDisc(disc))
+        {
+            var filtered = Sim.GetFilteredDiscs();
+            if (inspectedStorageDisc?.Id == disc.Id)
+            {
+                inspectedStorageDisc = filtered.FirstOrDefault();
+            }
+            await SaveState();
+        }
+    }
+
+    private void SetPartitionFilter(int? partition)
+    {
+        Sim.State.FilterPartition = partition;
+        var filtered = Sim.GetFilteredDiscs();
+        if (inspectedStorageDisc != null && !filtered.Contains(inspectedStorageDisc))
+        {
+            inspectedStorageDisc = filtered.FirstOrDefault();
+        }
+    }
+
+    private void SetLockFilter(bool? isLocked)
+    {
+        Sim.State.FilterLock = isLocked;
+        var filtered = Sim.GetFilteredDiscs();
+        if (inspectedStorageDisc != null && !filtered.Contains(inspectedStorageDisc))
+        {
+            inspectedStorageDisc = filtered.FirstOrDefault();
+        }
+    }
+
+    private void OnSetFilterChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        Sim.State.FilterSet = string.IsNullOrEmpty(val) ? null : Enum.Parse<DiscSet>(val);
+        var filtered = Sim.GetFilteredDiscs();
+        if (inspectedStorageDisc != null && !filtered.Contains(inspectedStorageDisc))
+        {
+            inspectedStorageDisc = filtered.FirstOrDefault();
+        }
+    }
+
+    private void OnSortChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<SortOrder>(e.Value?.ToString(), out var sort))
+        {
+            Sim.State.CurrentSort = sort;
+            var filtered = Sim.GetFilteredDiscs();
+            if (inspectedStorageDisc != null && !filtered.Contains(inspectedStorageDisc))
+            {
+                inspectedStorageDisc = filtered.FirstOrDefault();
+            }
+        }
     }
 
     private void CloseObtainModal()
@@ -345,6 +692,7 @@
         Sim.State.HiFiMasterCopies = 60;
         selectedPartition = 4;
         showObtainModal = false;
+        showStorageModal = false;
         await Storage.ClearStateAsync();
         await SaveState();
     }

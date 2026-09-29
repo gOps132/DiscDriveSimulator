@@ -154,6 +154,9 @@ public class SimulationService : ISimulationService
         if (State.FilterMainStat.HasValue && disc.MainStat != State.FilterMainStat.Value)
             return false;
 
+        if (State.FilterLock.HasValue && disc.IsLocked != State.FilterLock.Value)
+            return false;
+
         if (State.MinRv > 0 && disc.GetRollValue(State.DesiredStats) < State.MinRv)
             return false;
 

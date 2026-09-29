@@ -44,6 +44,7 @@ public class SimulationState
     public int? FilterPartition { get; set; } = null;
     public DiscSet? FilterSet { get; set; } = null;
     public StatType? FilterMainStat { get; set; } = null;
+    public bool? FilterLock { get; set; } = null;
     public int MinRv { get; set; } = 0;
     public double MinCv { get; set; } = 0;
     public SortOrder CurrentSort { get; set; } = SortOrder.HighestCv;
