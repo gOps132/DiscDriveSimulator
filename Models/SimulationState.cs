@@ -19,7 +19,9 @@ public class SimulationState
     public int TotalDiscsCrafted { get; set; }
 
     // Inventory & Currency
-    public int HiFiMasterCopies { get; set; } = 0;
+    public int BatteryCharge { get; set; } = 240;
+    public int EtherBatteries { get; set; } = 12;
+    public int HiFiMasterCopies { get; set; } = 60;
     public List<Disc> Inventory { get; set; } = new();
 
     // Automation Settings
