@@ -25,7 +25,7 @@ public class SimulationState
     public List<Disc> Inventory { get; set; } = new();
 
     // Routine Cleanup Settings
-    public string SelectedCleanupStageId { get; set; } = "predator_prey";
+    public string SelectedCleanupStageId { get; set; } = "stage_1";
     public bool WithDailyCoffee { get; set; } = false;
     public int? TargetCleanupPartition { get; set; } = null; // null = All Partitions
     public List<StatType> PrioritizedSubstats { get; set; } = new()

@@ -27,3 +27,119 @@ body {
     overflow-y: auto;
     position: relative;
 }
+
+/* ==========================================================================
+   Standard Disc Slot Component
+   ========================================================================== */
+.disc-slot {
+    --size: 160px;
+    --rarity: #f2a900;
+
+    position: relative;
+    width: var(--size);
+    height: var(--size);
+    flex-shrink: 0;
+}
+
+/* Clipped card body */
+.disc-slot__card {
+    position: absolute;
+    inset: 0;
+    border-radius: calc(var(--size) * 0.09);
+    background: radial-gradient(circle at 50% 42%, #3a3a3a 0%, #1c1c1c 70%);
+    box-shadow:
+        inset 0 0 0 calc(var(--size) * 0.012) #050505,
+        0 4px 12px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    transition: box-shadow 0.12s ease;
+}
+
+/* Selected state: solid yellow border, no glowing */
+.disc-slot.selected .disc-slot__card {
+    box-shadow:
+        inset 0 0 0 2.5px #f2a900,
+        0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+/* Gold rarity bar */
+.disc-slot__card::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 15%;
+    background: var(--rarity);
+}
+
+.disc-slot__img {
+    position: absolute;
+    left: 50%;
+    top: 47%;
+    width: 78%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.55));
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* Badge wrapper: carries shadow */
+.disc-slot__badge {
+    position: absolute;
+    top: -5%;
+    left: -5%;
+    width: 30%;
+    aspect-ratio: 1 / 1.1547;
+    z-index: 2;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+}
+
+.disc-slot__hex {
+    --hex: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: #d9d9d9;
+    clip-path: var(--hex);
+}
+
+.disc-slot__hex::before {
+    content: "";
+    position: absolute;
+    inset: 7%;
+    background: linear-gradient(160deg, #4d4d4d, #222);
+    clip-path: var(--hex);
+}
+
+.disc-slot__hex span {
+    position: relative;
+    font: 800 calc(var(--size) * 0.17)/1 "Segoe UI", system-ui, sans-serif;
+    color: #fff;
+}
+
+/* Dismantled State */
+.disc-slot.is-dismantled {
+    opacity: 0.55;
+    filter: saturate(0.6);
+}
+
+.disc-slot__dismantled-tag {
+    position: absolute;
+    bottom: 18%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(220, 38, 38, 0.9);
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: calc(var(--size) * 0.08);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    z-index: 3;
+    white-space: nowrap;
+}

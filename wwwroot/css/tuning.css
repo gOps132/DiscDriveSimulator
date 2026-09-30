@@ -981,7 +981,7 @@
     justify-content: space-between;
     width: 100%;
     padding-top: 0.2rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    /* border-top: 1px solid rgba(255, 255, 255, 0.1); */
 }
 
 .tune-sub-text {

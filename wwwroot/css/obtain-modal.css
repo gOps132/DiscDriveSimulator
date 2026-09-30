@@ -99,15 +99,8 @@
 /* S-Rank Disc Card */
 .s-rank-disc-card {
     position: relative;
-    aspect-ratio: 1 / 1;
-    width: 100%;
-    min-width: 0;
-    background: #eab308;
-    background: linear-gradient(135deg, #facc15 0%, #b45309 100%);
-    border-radius: 12px;
-    padding: 3px;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: transform 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -115,19 +108,16 @@
 
 .s-rank-disc-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(234, 179, 8, 0.4);
 }
 
 .s-rank-disc-card.selected {
-    box-shadow: 0 0 0 3px #fef08a, 0 0 16px rgba(254, 240, 138, 0.85);
-    transform: scale(1.05);
+    transform: scale(1.04);
     z-index: 2;
 }
 
 /* Card Dismantled State */
 .s-rank-disc-card.is-dismantled {
     opacity: 0.55;
-    border-color: #4b5563;
     filter: saturate(0.6);
 }
 

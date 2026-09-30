@@ -5,11 +5,14 @@ namespace DiscDriveSimulator.Services;
 public class DiscGenerator : IDiscGenerator
 {
     private readonly Random _random = new();
+    private static readonly DiscSet[] AllSets = Enum.GetValues<DiscSet>()
+        .Where(s => s != DiscSet.SetAlpha && s != DiscSet.SetBeta)
+        .ToArray();
 
     public Disc GenerateDisc(int? partition = null, DiscSet? set = null, bool isCrafted = false)
     {
         int p = partition ?? _random.Next(1, 7);
-        DiscSet s = set ?? (_random.Next(2) == 0 ? DiscSet.SetAlpha : DiscSet.SetBeta);
+        DiscSet s = set ?? AllSets[_random.Next(AllSets.Length)];
 
         StatType mainStat = PickMainStat(p);
         double mainStatValue = SimulationConfig.GetDefaultMainStatValue(p, mainStat);

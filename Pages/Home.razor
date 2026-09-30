@@ -418,17 +418,9 @@
                         var isSelected = inspectedModalDisc?.Id == disc.Id;
                         var record = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
                         var isDismantled = record != null && !record.IsKept;
-                        <div class="s-rank-disc-card @(isSelected ? "selected" : "") @(isDismantled ? "is-dismantled" : "is-kept")"
+                        <div class="s-rank-disc-card"
                              @onclick="() => SelectModalDisc(disc)">
-                            <div class="disc-inner-frame">
-                                <img src="assets/IconMessageRoleCircle19.png" alt="Disc" class="disc-vinyl-img" />
-                                <span class="disc-slot-badge">@disc.Partition</span>
-                                <img src="assets/Icon_Item_Rank_S.webp" alt="S-Rank" class="disc-rank-badge" />
-                                @if (isDismantled)
-                                {
-                                    <span class="dismantled-card-tag">Dismantled</span>
-                                }
-                            </div>
+                            <DiscSlot Disc="disc" IsSelected="isSelected" IsDismantled="isDismantled" Size="92px" />
                         </div>
                     }
                 </div>
@@ -451,8 +443,13 @@
                             </div>
                         }
 
-                        <div class="detail-title">Partition @inspectedModalDisc.Partition disc</div>
-                        <div class="detail-set-title">@Disc.FormatSetName(inspectedModalDisc.Set)</div>
+                        <div class="obtain-detail-disc-header" style="display: flex; align-items: center; gap: 0.85rem; margin-bottom: 0.75rem;">
+                            <DiscSlot Disc="inspectedModalDisc" Size="80px" />
+                            <div>
+                                <div class="detail-title">Partition @inspectedModalDisc.Partition disc</div>
+                                <div class="detail-set-title">@Disc.FormatSetName(inspectedModalDisc.Set)</div>
+                            </div>
+                        </div>
 
                         <div class="detail-stats-section">
                             <div class="detail-main-stat-box">
@@ -653,11 +650,9 @@
                                         }
                                     </div>
 
-                                    <!-- Disc Vinyl Art -->
-                                    <div class="storage-disc-vinyl-box">
-                                        <img src="assets/IconMessageRoleCircle19.png" alt="Disc" class="disc-vinyl-img" />
-                                        <span class="disc-slot-badge">@disc.Partition</span>
-                                        <img src="assets/Icon_Item_Rank_S.webp" alt="S-Rank" class="disc-rank-badge" />
+                                    <!-- Disc Slot Art -->
+                                    <div class="storage-disc-slot-container">
+                                        <DiscSlot Disc="disc" Size="96px" IsSelected="isInspected" />
                                     </div>
 
                                     <!-- Main Stat Snippet -->
@@ -682,9 +677,12 @@
                     {
                         <div class="inspector-card-inner">
                             <div class="inspector-header">
-                                <div>
-                                    <div class="inspector-disc-title">Partition @inspectedStorageDisc.Partition Disc</div>
-                                    <div class="inspector-disc-set">@Disc.FormatSetName(inspectedStorageDisc.Set)</div>
+                                <div class="inspector-disc-main-info">
+                                    <DiscSlot Disc="inspectedStorageDisc" Size="80px" />
+                                    <div>
+                                        <div class="inspector-disc-title">Partition @inspectedStorageDisc.Partition Disc</div>
+                                        <div class="inspector-disc-set">@Disc.FormatSetName(inspectedStorageDisc.Set)</div>
+                                    </div>
                                 </div>
                                 <button type="button" class="btn-quick-lock" @onclick="() => ToggleLock(inspectedStorageDisc)"
                                         title="@(inspectedStorageDisc.IsLocked ? "Unlock Disc" : "Lock Disc")">
@@ -771,7 +769,7 @@
 
     private async Task OnStageChanged(ChangeEventArgs e)
     {
-        Sim.State.SelectedCleanupStageId = e.Value?.ToString() ?? "predator_prey";
+        Sim.State.SelectedCleanupStageId = e.Value?.ToString() ?? "stage_1";
         await SaveState();
     }
 
@@ -1118,6 +1116,7 @@
         Sim.State.HiFiMasterCopies = 0;
         selectedPartition = null;
         Sim.State.SelectedCraftPartition = null;
+        Sim.State.SelectedCleanupStageId = "stage_1";
         inspectedStorageDisc = null;
         lastRunSummary = null;
         showObtainModal = false;

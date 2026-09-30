@@ -1,0 +1,25 @@
+@namespace DiscDriveSimulator.Components
+
+<div class="disc-slot @(IsSelected ? "selected" : "") @(IsDismantled ? "is-dismantled" : "") @CustomClass"
+     style="@(string.IsNullOrEmpty(Size) ? "" : $"--size: {Size};")"
+     @attributes="AdditionalAttributes">
+    <div class="disc-slot__card">
+        <img class="disc-slot__img" src="@Disc.GetDiscImagePath(Disc.Set)" alt="@Disc.FormatSetName(Disc.Set)" />
+        @if (IsDismantled)
+        {
+            <div class="disc-slot__dismantled-tag">Dismantled</div>
+        }
+    </div>
+    <div class="disc-slot__badge">
+        <div class="disc-slot__hex"><span>@Disc.Partition</span></div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Disc Disc { get; set; } = default!;
+    [Parameter] public bool IsSelected { get; set; }
+    [Parameter] public bool IsDismantled { get; set; }
+    [Parameter] public string? CustomClass { get; set; }
+    [Parameter] public string? Size { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+}
