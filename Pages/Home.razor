@@ -658,23 +658,22 @@
                                 var isInspected = inspectedStorageDisc?.Id == disc.Id;
                                 <div class="storage-disc-card @(isInspected ? "inspected" : "") @(disc.IsSelected ? "batch-selected" : "")"
                                      @onclick="() => SelectStorageDisc(disc)">
-                                    <!-- Card Header: Checkbox & Lock Icon -->
-                                    <div class="disc-card-topbar">
-                                        <input type="checkbox"
-                                               class="disc-batch-checkbox"
-                                               checked="@disc.IsSelected"
-                                               disabled="@disc.IsLocked"
-                                               @onclick:stopPropagation="true"
-                                               @onchange="(e) => ToggleDiscSelection(disc, e)" />
-                                        @if (disc.IsLocked)
-                                        {
-                                            <img src="assets/Icon_Locked_03.png" alt="Locked" class="disc-lock-indicator" />
-                                        }
-                                    </div>
-
-                                    <!-- Disc Slot Art -->
+                                    <!-- Disc Slot Art & Corner Overlays -->
                                     <div class="storage-disc-slot-container">
-                                        <DiscSlot Disc="disc" Size="96px" IsSelected="isInspected" />
+                                        <DiscSlot Disc="disc" Size="96px" />
+                                        <div class="disc-card-overlays">
+                                            @if (disc.IsLocked)
+                                            {
+                                                <img src="assets/Icon_Locked_03.png" alt="Locked" class="disc-lock-indicator" />
+                                            }
+                                            <label class="disc-batch-checkbox-wrap" @onclick:stopPropagation="true">
+                                                <input type="checkbox"
+                                                       class="disc-batch-checkbox"
+                                                       checked="@disc.IsSelected"
+                                                       disabled="@disc.IsLocked"
+                                                       @onchange="(e) => ToggleDiscSelection(disc, e)" />
+                                            </label>
+                                        </div>
                                     </div>
 
                                     <!-- Main Stat Snippet -->
