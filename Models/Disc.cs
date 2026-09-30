@@ -77,6 +77,13 @@ public class Disc
         return rv;
     }
 
+    public int GetRollValue(IEnumerable<StatType>? desiredStats)
+    {
+        if (desiredStats == null) return 0;
+        if (desiredStats is HashSet<StatType> set) return GetRollValue(set);
+        return GetRollValue(new HashSet<StatType>(desiredStats));
+    }
+
     public static bool IsPercentStat(StatType stat)
     {
         return stat switch

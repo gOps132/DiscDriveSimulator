@@ -151,6 +151,79 @@
                     </div>
                 </div>
 
+                <!-- Target Partition & Substats Priority -->
+                <div class="cleanup-priority-panel">
+                    <div class="priority-section-title">Target &amp; Substats Priority</div>
+
+                    <!-- Target Partition Selector -->
+                    <div class="priority-row">
+                        <span class="priority-label">Target Partition:</span>
+                        <div class="target-partition-pills">
+                            <button type="button"
+                                    class="target-part-pill @(Sim.State.TargetCleanupPartition == null ? "active" : "")"
+                                    @onclick="() => SetCleanupTargetPartition(null)">All</button>
+                            @for (int p = 1; p <= 6; p++)
+                            {
+                                var part = p;
+                                <button type="button"
+                                        class="target-part-pill @(Sim.State.TargetCleanupPartition == part ? "active" : "")"
+                                        @onclick="() => SetCleanupTargetPartition(part)">@part</button>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Ranked Priorities List -->
+                    <div class="priority-row">
+                        <div class="priority-header-flex">
+                            <span class="priority-label">Ranked Priorities:</span>
+                            @if (Sim.State.PrioritizedSubstats.Count > 0)
+                            {
+                                <button type="button" class="btn-clear-priorities" @onclick="ClearPrioritizedSubstats">Clear</button>
+                            }
+                        </div>
+
+                        <div class="ranked-substats-list">
+                            @for (int i = 0; i < Sim.State.PrioritizedSubstats.Count; i++)
+                            {
+                                var idx = i;
+                                var stat = Sim.State.PrioritizedSubstats[i];
+                                <div class="ranked-chip">
+                                    <span class="rank-badge">#@(idx + 1)</span>
+                                    <span class="rank-stat-name">@Disc.FormatStatName(stat)</span>
+                                    <button type="button" class="rank-remove-btn" @onclick="() => RemovePrioritizedSubstat(idx)" title="Remove">×</button>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Available Substats to Add -->
+                        @{
+                            var availableStats = SimulationConfig.SubstatPool.Where(s => !Sim.State.PrioritizedSubstats.Contains(s)).ToList();
+                        }
+                        @if (availableStats.Count > 0)
+                        {
+                            <div class="available-stats-pool">
+                                <span class="pool-hint">+ Add:</span>
+                                @foreach (var s in availableStats)
+                                {
+                                    <button type="button" class="btn-pool-stat" @onclick="() => AddPrioritizedSubstat(s)">
+                                        @Disc.FormatStatName(s)
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Min RV Threshold -->
+                    <div class="priority-row inline-between">
+                        <span class="priority-label">Min Roll Value (RV):</span>
+                        <div class="rv-stepper">
+                            <button type="button" class="btn-rv-step" disabled="@(Sim.State.MinCleanupRv <= 1)" @onclick="DecrementMinRv">-</button>
+                            <span class="rv-stepper-val">@Sim.State.MinCleanupRv Rolls</span>
+                            <button type="button" class="btn-rv-step" disabled="@(Sim.State.MinCleanupRv >= 5)" @onclick="IncrementMinRv">+</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Automation Settings -->
                 <div class="automation-settings-box">
                     <label class="automation-toggle">
@@ -301,9 +374,22 @@
 @if (showObtainModal)
 {
     <div class="modal-backdrop-overlay" @onclick="CloseObtainModal">
-        <div class="obtain-modal-window" @onclick:stopPropagation="true">
-            <div class="obtain-header">
-                <div class="obtain-title">Obtain</div>
+        <div class="obtain-modal-window" @onclick:stopPropagation="true">            <div class="obtain-header">
+                <div class="obtain-title-group">
+                    <div class="obtain-title">Obtain</div>
+                    @if (lastRunSummary != null && lastRunSummary.DropRecords.Count > 0)
+                    {
+                        var keptCount = lastRunSummary.DropRecords.Count(r => r.IsKept);
+                        var dismantledCount = lastRunSummary.DropRecords.Count(r => !r.IsKept);
+                        <div class="obtain-counts-sub">
+                            <span class="count-kept">@keptCount Kept</span>
+                            @if (dismantledCount > 0)
+                            {
+                                <span class="count-dismantled">• @dismantledCount Dismantled (+@dismantledCount Master Copies)</span>
+                            }
+                        </div>
+                    }
+                </div>
                 <button type="button" class="obtain-close-btn" @onclick="CloseObtainModal" title="Close">
                     <img src="assets/IconCancel.png" alt="Close" />
                 </button>
@@ -315,12 +401,18 @@
                     @foreach (var disc in modalDiscs)
                     {
                         var isSelected = inspectedModalDisc?.Id == disc.Id;
-                        <div class="s-rank-disc-card @(isSelected ? "selected" : "")"
+                        var record = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
+                        var isDismantled = record != null && !record.IsKept;
+                        <div class="s-rank-disc-card @(isSelected ? "selected" : "") @(isDismantled ? "is-dismantled" : "is-kept")"
                              @onclick="() => SelectModalDisc(disc)">
                             <div class="disc-inner-frame">
                                 <img src="assets/IconMessageRoleCircle19.png" alt="Disc" class="disc-vinyl-img" />
                                 <span class="disc-slot-badge">@disc.Partition</span>
                                 <img src="assets/Icon_Item_Rank_S.webp" alt="S-Rank" class="disc-rank-badge" />
+                                @if (isDismantled)
+                                {
+                                    <span class="dismantled-card-tag">Dismantled</span>
+                                }
                             </div>
                         </div>
                     }
@@ -330,6 +422,20 @@
                 <div class="obtain-detail-panel">
                     @if (inspectedModalDisc != null)
                     {
+                        var inspectedRecord = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedModalDisc.Id);
+                        var isDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
+
+                        @if (inspectedRecord != null)
+                        {
+                            <div class="obtain-status-banner @(isDismantled ? "dismantled" : "kept")">
+                                <span class="status-pill">@(isDismantled ? "AUTO-DISMANTLED" : "KEPT IN INVENTORY")</span>
+                                @if (isDismantled && !string.IsNullOrEmpty(inspectedRecord.DismantleReason))
+                                {
+                                    <span class="dismantle-reason-text">@inspectedRecord.DismantleReason</span>
+                                }
+                            </div>
+                        }
+
                         <div class="detail-title">Partition @inspectedModalDisc.Partition disc</div>
                         <div class="detail-set-title">@Disc.FormatSetName(inspectedModalDisc.Set)</div>
 
@@ -347,9 +453,16 @@
                                 <ul class="detail-substats-list">
                                     @foreach (var sub in inspectedModalDisc.Substats)
                                     {
-                                        var isDesired = Sim.State.DesiredStats.Contains(sub.Stat);
-                                        <li class="detail-substat-item @(isDesired ? "is-desired" : "")">
-                                            <span>@(isDesired ? "★ " : "• ")@Disc.FormatStatName(sub.Stat)</span>
+                                        var priorityIdx = Sim.State.PrioritizedSubstats.IndexOf(sub.Stat);
+                                        var isPrioritized = priorityIdx >= 0;
+                                        <li class="detail-substat-item @(isPrioritized ? "is-prioritized" : "")">
+                                            <div class="substat-name-col">
+                                                @if (isPrioritized)
+                                                {
+                                                    <span class="sub-priority-badge">#@(priorityIdx + 1)</span>
+                                                }
+                                                <span>@Disc.FormatStatName(sub.Stat)</span>
+                                            </div>
                                             <span>+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
                                         </li>
                                     }
@@ -358,19 +471,28 @@
 
                             <div class="detail-scores-row">
                                 <span class="score-tag cv">CV: @inspectedModalDisc.GetCritValue()</span>
-                                <span class="score-tag rv">RV: @inspectedModalDisc.GetRollValue(Sim.State.DesiredStats)/4</span>
+                                <span class="score-tag rv">RV: @inspectedModalDisc.GetRollValue(Sim.State.PrioritizedSubstats)/4</span>
                             </div>
                         </div>
 
                         <div class="detail-actions-row">
-                            <button type="button" class="btn-detail" @onclick="() => ToggleLock(inspectedModalDisc)">
-                                @(inspectedModalDisc.IsLocked ? "Unlock" : "Lock")
-                            </button>
-                            <button type="button" class="btn-detail danger"
-                                    disabled="@inspectedModalDisc.IsLocked"
-                                    @onclick="() => DismantleModalDisc(inspectedModalDisc)">
-                                Dismantle (+1)
-                            </button>
+                            @if (!isDismantled)
+                            {
+                                <button type="button" class="btn-detail" @onclick="() => ToggleLock(inspectedModalDisc)">
+                                    @(inspectedModalDisc.IsLocked ? "Unlock" : "Lock")
+                                </button>
+                                <button type="button" class="btn-detail danger"
+                                        disabled="@inspectedModalDisc.IsLocked"
+                                        @onclick="() => DismantleModalDisc(inspectedModalDisc)">
+                                    Dismantle (+1)
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn-detail danger" disabled>
+                                    Already Dismantled (+1 Copy)
+                                </button>
+                            }
                         </div>
                     }
                     else
@@ -622,8 +744,8 @@
     private Disc? inspectedModalDisc;
     private Disc? inspectedStorageDisc;
     private string batteryInputStr = "000240";
-    private string etherInputStr = "000012";
-    private string hifiInputStr = "000060";
+    private string etherInputStr = "000000";
+    private string hifiInputStr = "000000";
     private SimulationRunResult? lastRunSummary;
 
     private RoutineCleanupStage GetCurrentStage()
@@ -655,6 +777,54 @@
     private int GetTotalCalculatedRuns()
     {
         return (Sim.State.BatteryCharge + (Sim.State.EtherBatteries * 60)) / 60;
+    }
+
+    private async Task SetCleanupTargetPartition(int? partition)
+    {
+        Sim.State.TargetCleanupPartition = partition;
+        await SaveState();
+    }
+
+    private async Task AddPrioritizedSubstat(StatType stat)
+    {
+        if (!Sim.State.PrioritizedSubstats.Contains(stat))
+        {
+            Sim.State.PrioritizedSubstats.Add(stat);
+            await SaveState();
+        }
+    }
+
+    private async Task RemovePrioritizedSubstat(int index)
+    {
+        if (index >= 0 && index < Sim.State.PrioritizedSubstats.Count)
+        {
+            Sim.State.PrioritizedSubstats.RemoveAt(index);
+            await SaveState();
+        }
+    }
+
+    private async Task ClearPrioritizedSubstats()
+    {
+        Sim.State.PrioritizedSubstats.Clear();
+        await SaveState();
+    }
+
+    private async Task IncrementMinRv()
+    {
+        if (Sim.State.MinCleanupRv < 5)
+        {
+            Sim.State.MinCleanupRv++;
+            await SaveState();
+        }
+    }
+
+    private async Task DecrementMinRv()
+    {
+        if (Sim.State.MinCleanupRv > 1)
+        {
+            Sim.State.MinCleanupRv--;
+            await SaveState();
+        }
     }
 
     private async Task RunRoutineCleanup()
@@ -698,8 +868,8 @@
         else
         {
             Sim.State.BatteryCharge = 240;
-            Sim.State.EtherBatteries = 12;
-            Sim.State.HiFiMasterCopies = 60;
+            Sim.State.EtherBatteries = 0;
+            Sim.State.HiFiMasterCopies = 0;
         }
 
         SyncCurrencyInputs();
@@ -920,8 +1090,8 @@
     {
         Sim.Reset();
         Sim.State.BatteryCharge = 240;
-        Sim.State.EtherBatteries = 12;
-        Sim.State.HiFiMasterCopies = 60;
+        Sim.State.EtherBatteries = 0;
+        Sim.State.HiFiMasterCopies = 0;
         selectedPartition = 4;
         inspectedStorageDisc = null;
         lastRunSummary = null;

@@ -72,16 +72,45 @@ public class SimulationService : ISimulationService
 
     private void ProcessNewDisc(Disc disc, SimulationRunResult? result = null)
     {
-        if (State.AutoDismantleOnSim && !MatchesFilter(disc))
+        int rv = disc.GetRollValue(State.PrioritizedSubstats);
+        bool isKept = true;
+        string dismantleReason = string.Empty;
+
+        if (State.AutoDismantleOnSim)
+        {
+            if (State.TargetCleanupPartition.HasValue && disc.Partition != State.TargetCleanupPartition.Value)
+            {
+                isKept = false;
+                dismantleReason = $"Partition {disc.Partition} mismatch (Target: {State.TargetCleanupPartition.Value})";
+            }
+            else if (rv < State.MinCleanupRv)
+            {
+                isKept = false;
+                dismantleReason = $"RV {rv} below Min RV {State.MinCleanupRv}";
+            }
+        }
+
+        if (isKept)
+        {
+            State.Inventory.Add(disc);
+            if (result != null) result.KeptDiscs.Add(disc);
+        }
+        else
         {
             State.HiFiMasterCopies++;
             State.TotalDiscsDismantled++;
             if (result != null) result.DismantledCount++;
         }
-        else
+
+        if (result != null)
         {
-            State.Inventory.Add(disc);
-            if (result != null) result.KeptDiscs.Add(disc);
+            result.DropRecords.Add(new CleanupDropRecord
+            {
+                Disc = disc,
+                IsKept = isKept,
+                RollValue = rv,
+                DismantleReason = dismantleReason
+            });
         }
     }
 

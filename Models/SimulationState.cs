@@ -27,6 +27,14 @@ public class SimulationState
     // Routine Cleanup Settings
     public string SelectedCleanupStageId { get; set; } = "predator_prey";
     public bool WithDailyCoffee { get; set; } = false;
+    public int? TargetCleanupPartition { get; set; } = null; // null = All Partitions
+    public List<StatType> PrioritizedSubstats { get; set; } = new()
+    {
+        StatType.CritRate,
+        StatType.CritDmg,
+        StatType.ATKPercent
+    };
+    public int MinCleanupRv { get; set; } = 2;
 
     // Automation Settings
     public bool AutoDismantleOnSim { get; set; } = false;
@@ -62,6 +70,14 @@ public class SimulationState
         TotalDiscsCrafted = 0;
         HiFiMasterCopies = 0;
         Inventory.Clear();
+        TargetCleanupPartition = null;
+        PrioritizedSubstats = new()
+        {
+            StatType.CritRate,
+            StatType.CritDmg,
+            StatType.ATKPercent
+        };
+        MinCleanupRv = 2;
         FilterPartition = null;
         FilterSet = null;
         FilterMainStat = null;
@@ -70,15 +86,25 @@ public class SimulationState
     }
 }
 
+public class CleanupDropRecord
+{
+    public Disc Disc { get; set; } = null!;
+    public bool IsKept { get; set; }
+    public int RollValue { get; set; }
+    public string DismantleReason { get; set; } = string.Empty;
+}
+
 public class SimulationRunResult
 {
     public int Runs { get; set; }
     public int BatterySpent { get; set; }
     public List<Disc> GeneratedDiscs { get; set; } = new();
     public List<Disc> KeptDiscs { get; set; } = new();
+    public List<CleanupDropRecord> DropRecords { get; set; } = new();
     public int DismantledCount { get; set; }
     public int AutoCraftedCount { get; set; }
 
     public double AverageCv => KeptDiscs.Count > 0 ? Math.Round(KeptDiscs.Average(d => d.GetCritValue()), 1) : 0;
 }
+
 
