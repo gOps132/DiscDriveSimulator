@@ -157,7 +157,6 @@
 
                     <!-- Target Partition Selector -->
                     <div class="priority-row">
-                        <span class="priority-label">Target Partition:</span>
                         <div class="target-partition-pills">
                             <button type="button"
                                     class="target-part-pill @(Sim.State.TargetCleanupPartition == null ? "active" : "")"
@@ -296,14 +295,24 @@
         <div class="bardic-needle-container ">
             <!-- Center Floating Partition Info Card -->
             <aside class="partition-info-card">
-                <div class="info-title">Partition @selectedPartition (Selected)</div>
-                <div class="info-subtitle">Possible Main Stats:</div>
-                <ul class="stats-pool-list">
-                    @foreach (var stat in GetPossibleMainStats(selectedPartition))
-                    {
-                        <li>@Disc.FormatStatName(stat)</li>
-                    }
-                </ul>
+                @if (selectedPartition.HasValue)
+                {
+                    <div class="info-title">Partition @selectedPartition.Value (Selected)</div>
+                    <div class="info-subtitle">Possible Main Stats:</div>
+                    <ul class="stats-pool-list">
+                        @foreach (var stat in GetPossibleMainStats(selectedPartition.Value))
+                        {
+                            <li>@Disc.FormatStatName(stat)</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <div class="info-title">Random Partition</div>
+                    <div class="info-summary-text">
+                        Any Partition
+                    </div>
+                }
             </aside>
 
             <!-- Right Main Console -->
@@ -329,7 +338,9 @@
                 </div>
 
                 <div class="console-notice-text">
-                    Guaranteed S-Rank Drive Disc for the selected partition
+                    @(selectedPartition.HasValue
+                        ? "Guaranteed S-Rank Drive Disc for the selected partition"
+                        : "Guaranteed S-Rank Drive Disc for a random partition (1-6)")
                 </div>
 
                 <!-- Action Buttons: Tune x01 & Tune x10 -->
@@ -342,7 +353,7 @@
                             <span>6</span>
                         </div>
                         <div class="tune-label-group">
-                            <span class="tune-sub-text">Tune Partition @selectedPartition</span>
+                            <span class="tune-sub-text">@(selectedPartition.HasValue ? $"Tune Partition {selectedPartition.Value}" : "Tune Random Partition")</span>
                             <span class="tune-multiplier">x01</span>
                         </div>
                     </button>
@@ -355,7 +366,7 @@
                             <span>60</span>
                         </div>
                         <div class="tune-label-group">
-                            <span class="tune-sub-text">Tune Partition @selectedPartition</span>
+                            <span class="tune-sub-text">@(selectedPartition.HasValue ? $"Tune Partition {selectedPartition.Value}" : "Tune Random Partition")</span>
                             <span class="tune-multiplier">x10</span>
                         </div>
                     </button>
@@ -741,7 +752,7 @@
 
 @code {
     private ElementReference tuningScreenRef;
-    private int selectedPartition = 4;
+    private int? selectedPartition = null;
     private bool showObtainModal = false;
     private bool showStorageModal = false;
     private List<Disc> modalDiscs = new();
@@ -868,6 +879,7 @@
         if (savedState != null)
         {
             Sim.SetState(savedState);
+            selectedPartition = Sim.State.SelectedCraftPartition;
         }
         else
         {
@@ -899,8 +911,16 @@
 
     private void SelectPartition(int partition)
     {
-        selectedPartition = partition;
-        Sim.State.SelectedCraftPartition = partition;
+        if (selectedPartition == partition)
+        {
+            selectedPartition = null;
+            Sim.State.SelectedCraftPartition = null;
+        }
+        else
+        {
+            selectedPartition = partition;
+            Sim.State.SelectedCraftPartition = partition;
+        }
     }
 
     private void HandleKeyDown(KeyboardEventArgs e)
@@ -1096,7 +1116,8 @@
         Sim.State.BatteryCharge = 240;
         Sim.State.EtherBatteries = 0;
         Sim.State.HiFiMasterCopies = 0;
-        selectedPartition = 4;
+        selectedPartition = null;
+        Sim.State.SelectedCraftPartition = null;
         inspectedStorageDisc = null;
         lastRunSummary = null;
         showObtainModal = false;

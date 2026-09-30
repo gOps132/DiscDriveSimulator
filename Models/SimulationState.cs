@@ -42,7 +42,7 @@ public class SimulationState
     public int AutoCraftPartition { get; set; } = 4;
 
     // Crafting target in Bardic Needle
-    public int SelectedCraftPartition { get; set; } = 4;
+    public int? SelectedCraftPartition { get; set; } = null;
 
     // Desired Substats for RV
     public HashSet<StatType> DesiredStats { get; set; } = new()

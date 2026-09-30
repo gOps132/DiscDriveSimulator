@@ -155,7 +155,7 @@ public class SimulationService : ISimulationService
         return DismantleDiscs(nonMatching);
     }
 
-    public Disc? CraftSingle(int partition)
+    public Disc? CraftSingle(int? partition = null)
     {
         if (State.HiFiMasterCopies < SimulationConfig.MasterCopiesPerCraft) return null;
 
@@ -169,7 +169,7 @@ public class SimulationService : ISimulationService
         return disc;
     }
 
-    public int CraftMultiple(int partition, int count)
+    public int CraftMultiple(int? partition, int count)
     {
         int crafted = 0;
         for (int i = 0; i < count; i++)
@@ -180,7 +180,7 @@ public class SimulationService : ISimulationService
         return crafted;
     }
 
-    public int CraftMax(int partition)
+    public int CraftMax(int? partition)
     {
         int maxPossible = State.HiFiMasterCopies / SimulationConfig.MasterCopiesPerCraft;
         return CraftMultiple(partition, maxPossible);
