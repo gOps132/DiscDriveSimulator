@@ -1,0 +1,188 @@
+@using DiscDriveSimulator.Models
+@using DiscDriveSimulator.Services
+@implements IDisposable
+@inject ISimulationService Sim
+@inject StorageService Storage
+
+<div class="bardic-needle-container">
+    <!-- Center Floating Partition Info Card -->
+    <aside class="partition-info-card">
+        <!-- Target Disc Set Selector Row -->
+        <div class="target-disc-set-box" @onclick="HandleOpenDiscSelector" title="Click to choose Drive Disc type">
+            <img src="@Disc.GetDiscImagePath(SelectedSet)" alt="@Disc.FormatSetName(SelectedSet)" class="target-disc-thumb" />
+            <div class="target-disc-text-group">
+                <span class="target-disc-label">Target Drive Disc</span>
+                <span class="target-disc-name">@Disc.FormatSetName(SelectedSet)</span>
+            </div>
+        </div>
+
+        <div class="info-card-divider"></div>
+
+        @if (SelectedPartition.HasValue)
+        {
+            <div class="info-title">Partition @SelectedPartition.Value (Selected)</div>
+            <div class="info-subtitle">Possible Main Stats:</div>
+            <ul class="stats-pool-list">
+                @foreach (var stat in GetPossibleMainStats(SelectedPartition.Value))
+                {
+                    <li>@Disc.FormatStatName(stat)</li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="info-title">Random Partition</div>
+            <div class="info-summary-text">
+                Any Partition
+            </div>
+        }
+    </aside>
+
+    <!-- Right Main Console -->
+    <main class="tuning-console-panel">
+        <div class="console-prompt-banner">
+            Press the number to select a Drive Disc partition
+        </div>
+
+        <!-- Circular Apparatus with 6 Interactive Sockets -->
+        <div class="apparatus-wrapper">
+            <img src="assets/Equipment_Menu_Screen.webp" alt="Tuning Apparatus" class="apparatus-bg" />
+
+            @for (int i = 1; i <= 6; i++)
+            {
+                var partitionNumber = i;
+                <button type="button"
+                        class="socket-node socket-@partitionNumber @(SelectedPartition == partitionNumber ? "selected" : "")"
+                        title="Partition @partitionNumber"
+                        @onclick="() => SelectPartition(partitionNumber)">
+                    <span class="socket-label">@partitionNumber</span>
+                </button>
+            }
+        </div>
+
+        <div class="console-notice-text">
+            @(SelectedPartition.HasValue
+                ? $"Guaranteed S-Rank {Disc.FormatSetName(SelectedSet)} Drive Disc for Partition {SelectedPartition.Value}"
+                : $"Guaranteed S-Rank {Disc.FormatSetName(SelectedSet)} Drive Disc for a random partition (1-6)")
+        </div>
+
+        <!-- Action Buttons: Tune x01 & Tune x10 -->
+        <div class="tune-buttons-row">
+            <button type="button" class="btn-tune"
+                    disabled="@(Sim.State.HiFiMasterCopies < 6)"
+                    @onclick="() => TunePartition(1)">
+                <div class="tune-cost-group">
+                    <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
+                    <span>6</span>
+                </div>
+                <div class="tune-label-group">
+                    <span class="tune-sub-text">@(SelectedPartition.HasValue ? $"Tune Partition {SelectedPartition.Value}" : "Tune Random Partition")</span>
+                    <span class="tune-multiplier">x01</span>
+                </div>
+            </button>
+
+            <button type="button" class="btn-tune"
+                    disabled="@(Sim.State.HiFiMasterCopies < 60)"
+                    @onclick="() => TunePartition(10)">
+                <div class="tune-cost-group">
+                    <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
+                    <span>60</span>
+                </div>
+                <div class="tune-label-group">
+                    <span class="tune-sub-text">@(SelectedPartition.HasValue ? $"Tune Partition {SelectedPartition.Value}" : "Tune Random Partition")</span>
+                    <span class="tune-multiplier">x10</span>
+                </div>
+            </button>
+        </div>
+    </main>
+</div>
+
+@code {
+    [Parameter]
+    public DiscSet SelectedSet { get; set; } = DiscSet.SwingJazz;
+
+    [Parameter]
+    public int? SelectedPartition { get; set; }
+
+    [Parameter]
+    public EventCallback<int?> SelectedPartitionChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnOpenDiscSelector { get; set; }
+
+    [Parameter]
+    public EventCallback<List<Disc>> OnDiscsTuned { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Sim.OnChange += HandleSimStateChanged;
+    }
+
+    private void HandleSimStateChanged()
+    {
+        StateHasChanged();
+    }
+
+    private async Task HandleOpenDiscSelector()
+    {
+        if (OnOpenDiscSelector.HasDelegate)
+        {
+            await OnOpenDiscSelector.InvokeAsync();
+        }
+    }
+
+    public async Task SelectPartition(int partition)
+    {
+        int? newPartition = (SelectedPartition == partition) ? null : partition;
+        SelectedPartition = newPartition;
+        Sim.State.SelectedCraftPartition = newPartition;
+        if (SelectedPartitionChanged.HasDelegate)
+        {
+            await SelectedPartitionChanged.InvokeAsync(newPartition);
+        }
+    }
+
+    private async Task TunePartition(int count)
+    {
+        int cost = count * SimulationConfig.MasterCopiesPerCraft;
+        if (Sim.State.HiFiMasterCopies < cost) return;
+
+        var craftedDiscs = new List<Disc>();
+        for (int i = 0; i < count; i++)
+        {
+            var disc = Sim.CraftSingle(SelectedPartition, SelectedSet);
+            if (disc != null)
+            {
+                craftedDiscs.Add(disc);
+            }
+        }
+
+        if (craftedDiscs.Count > 0)
+        {
+            await Storage.SaveStateAsync(Sim.State);
+            if (OnDiscsTuned.HasDelegate)
+            {
+                await OnDiscsTuned.InvokeAsync(craftedDiscs);
+            }
+        }
+    }
+
+    private IEnumerable<StatType> GetPossibleMainStats(int partition)
+    {
+        return partition switch
+        {
+            1 => new[] { StatType.HP },
+            2 => new[] { StatType.ATK },
+            3 => new[] { StatType.DEF },
+            4 => SimulationConfig.Slot4MainStats,
+            5 => SimulationConfig.Slot5MainStats,
+            6 => SimulationConfig.Slot6MainStats,
+            _ => Array.Empty<StatType>()
+        };
+    }
+
+    public void Dispose()
+    {
+        Sim.OnChange -= HandleSimStateChanged;
+    }
+}

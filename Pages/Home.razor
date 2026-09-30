@@ -19,98 +19,14 @@
         </div>
 
 
-        <div class="bardic-needle-container ">
-            <!-- Center Floating Partition Info Card -->
-            <aside class="partition-info-card">
-                <!-- Target Disc Set Selector Row -->
-                <div class="target-disc-set-box" @onclick="OpenDiscSelectorModal" title="Click to choose Drive Disc type">
-                    <img src="@Disc.GetDiscImagePath(selectedCraftSet)" alt="@Disc.FormatSetName(selectedCraftSet)" class="target-disc-thumb" />
-                    <div class="target-disc-text-group">
-                        <span class="target-disc-label">Target Drive Disc</span>
-                        <span class="target-disc-name">@Disc.FormatSetName(selectedCraftSet)</span>
-                    </div>
-                </div>
+        <!-- Right Column: Bardic Needle Tuning Station -->
+        <BardicNeedleStation SelectedSet="selectedCraftSet"
+                             SelectedPartition="selectedPartition"
+                             SelectedPartitionChanged="OnPartitionChanged"
+                             OnOpenDiscSelector="OpenDiscSelectorModal"
+                             OnDiscsTuned="HandleDiscsTuned"
+                             @ref="bardicNeedleRef" />
 
-                <div class="info-card-divider"></div>
-
-                @if (selectedPartition.HasValue)
-                {
-                    <div class="info-title">Partition @selectedPartition.Value (Selected)</div>
-                    <div class="info-subtitle">Possible Main Stats:</div>
-                    <ul class="stats-pool-list">
-                        @foreach (var stat in GetPossibleMainStats(selectedPartition.Value))
-                        {
-                            <li>@Disc.FormatStatName(stat)</li>
-                        }
-                    </ul>
-                }
-                else
-                {
-                    <div class="info-title">Random Partition</div>
-                    <div class="info-summary-text">
-                        Any Partition
-                    </div>
-                }
-            </aside>
-
-            <!-- Right Main Console -->
-            <main class="tuning-console-panel">
-                <div class="console-prompt-banner">
-                    Press the number to select a Drive Disc partition
-                </div>
-
-                <!-- Circular Apparatus with 6 Interactive Sockets -->
-                <div class="apparatus-wrapper">
-                    <img src="assets/Equipment_Menu_Screen.webp" alt="Tuning Apparatus" class="apparatus-bg" />
-
-                    @for (int i = 1; i <= 6; i++)
-                    {
-                        var partitionNumber = i;
-                        <button type="button"
-                                class="socket-node socket-@partitionNumber @(selectedPartition == partitionNumber ? "selected" : "")"
-                                title="Partition @partitionNumber"
-                                @onclick="() => SelectPartition(partitionNumber)">
-                            <span class="socket-label">@partitionNumber</span>
-                        </button>
-                    }
-                </div>
-
-                <div class="console-notice-text">
-                    @(selectedPartition.HasValue
-                        ? $"Guaranteed S-Rank {Disc.FormatSetName(selectedCraftSet)} Drive Disc for Partition {selectedPartition.Value}"
-                        : $"Guaranteed S-Rank {Disc.FormatSetName(selectedCraftSet)} Drive Disc for a random partition (1-6)")
-                </div>
-
-                <!-- Action Buttons: Tune x01 & Tune x10 -->
-                <div class="tune-buttons-row">
-                    <button type="button" class="btn-tune"
-                            disabled="@(Sim.State.HiFiMasterCopies < 6)"
-                            @onclick="() => TunePartition(1)">
-                        <div class="tune-cost-group">
-                            <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
-                            <span>6</span>
-                        </div>
-                        <div class="tune-label-group">
-                            <span class="tune-sub-text">@(selectedPartition.HasValue ? $"Tune Partition {selectedPartition.Value}" : "Tune Random Partition")</span>
-                            <span class="tune-multiplier">x01</span>
-                        </div>
-                    </button>
-
-                    <button type="button" class="btn-tune"
-                            disabled="@(Sim.State.HiFiMasterCopies < 60)"
-                            @onclick="() => TunePartition(10)">
-                        <div class="tune-cost-group">
-                            <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
-                            <span>60</span>
-                        </div>
-                        <div class="tune-label-group">
-                            <span class="tune-sub-text">@(selectedPartition.HasValue ? $"Tune Partition {selectedPartition.Value}" : "Tune Random Partition")</span>
-                            <span class="tune-multiplier">x10</span>
-                        </div>
-                    </button>
-                </div>
-            </main>
-        </div>
 
         
     </div>
@@ -205,19 +121,21 @@
         }
     }
 
-    private void SelectPartition(int partition)
+    private BardicNeedleStation? bardicNeedleRef;
+
+    private void OnPartitionChanged(int? partition)
     {
-        if (selectedPartition == partition)
-        {
-            selectedPartition = null;
-            Sim.State.SelectedCraftPartition = null;
-        }
-        else
-        {
-            selectedPartition = partition;
-            Sim.State.SelectedCraftPartition = partition;
-        }
+        selectedPartition = partition;
     }
+
+    private async Task HandleDiscsTuned(List<Disc> discs)
+    {
+        modalDiscs = discs;
+        obtainModalSource = "TUNING";
+        showObtainModal = true;
+        await SaveState();
+    }
+
 
     private void OpenDiscSelectorModal()
     {
@@ -238,11 +156,14 @@
         Sim.NotifyStateChanged();
     }
 
-    private void HandleKeyDown(KeyboardEventArgs e)
+    private async Task HandleKeyDown(KeyboardEventArgs e)
     {
         if (int.TryParse(e.Key, out int num) && num >= 1 && num <= 6)
         {
-            SelectPartition(num);
+            if (bardicNeedleRef != null)
+            {
+                await bardicNeedleRef.SelectPartition(num);
+            }
         }
         else if (e.Key == "Escape")
         {
@@ -252,28 +173,7 @@
         }
     }
 
-    private async Task TunePartition(int count)
-    {
-        int cost = count * SimulationConfig.MasterCopiesPerCraft;
-        if (Sim.State.HiFiMasterCopies < cost) return;
 
-        modalDiscs.Clear();
-        for (int i = 0; i < count; i++)
-        {
-            var disc = Sim.CraftSingle(selectedPartition, selectedCraftSet);
-            if (disc != null)
-            {
-                modalDiscs.Add(disc);
-            }
-        }
-
-        if (modalDiscs.Count > 0)
-        {
-            obtainModalSource = "TUNING";
-            showObtainModal = true;
-            await SaveState();
-        }
-    }
 
     private void OpenStorageModal()
     {
@@ -314,19 +214,6 @@
         await Storage.SaveStateAsync(Sim.State);
     }
 
-    private IEnumerable<StatType> GetPossibleMainStats(int partition)
-    {
-        return partition switch
-        {
-            1 => new[] { StatType.HP },
-            2 => new[] { StatType.ATK },
-            3 => new[] { StatType.DEF },
-            4 => SimulationConfig.Slot4MainStats,
-            5 => SimulationConfig.Slot5MainStats,
-            6 => SimulationConfig.Slot6MainStats,
-            _ => Array.Empty<StatType>()
-        };
-    }
 
     public void Dispose()
     {
