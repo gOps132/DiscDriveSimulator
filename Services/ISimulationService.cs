@@ -12,9 +12,9 @@ public interface ISimulationService
     bool DismantleDisc(Disc disc);
     int DismantleDiscs(IEnumerable<Disc> discs);
     int DismantleNonMatching();
-    Disc? CraftSingle(int? partition = null);
-    int CraftMultiple(int? partition, int count);
-    int CraftMax(int? partition);
+    Disc? CraftSingle(int? partition = null, DiscSet? set = null);
+    int CraftMultiple(int? partition, int count, DiscSet? set = null);
+    int CraftMax(int? partition, DiscSet? set = null);
     bool MatchesFilter(Disc disc);
     List<Disc> GetFilteredDiscs();
     void Reset();
