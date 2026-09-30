@@ -8,66 +8,8 @@
 
 <div class="tuning-screen" tabindex="0" @onkeydown="HandleKeyDown" @ref="tuningScreenRef">
     <!-- Top Header Bar -->
-    <header class="tuning-header">
-        <div class="header-actions-left">
-            <button type="button" class="header-icon-btn" title="Reset &amp; Restore Initial State" @onclick="ResetInitial">
-                <img src="assets/IconLoadingBig.png" alt="Reset" />
-            </button>
-            <button type="button" class="header-icon-btn" title="View All Stored Discs" @onclick="OpenStorageModal">
-                <img src="assets/Icon_Storage.webp" alt="Storage" />
-            </button>
-        </div>
-
-        <div class="header-currencies-right">
-            <!-- Battery Charge Counter -->
-            <div class="currency-pill">
-                <input type="text"
-                       inputmode="numeric"
-                       class="currency-input"
-                       maxlength="8"
-                       value="@batteryInputStr"
-                       @oninput="e => batteryInputStr = e.Value?.ToString() ?? string.Empty"
-                       @onblur="CommitBattery"
-                       @onkeydown="e => HandleCurrencyKeyDown(e, CommitBattery)"
-                       @onkeydown:stopPropagation="true"
-                       onfocus="this.select()"
-                       title="Battery Charge (Editable)" />
-                <img class="currency-icon" src="assets/Item_Battery_Charge.webp" alt="Battery" />
-            </div>
-
-            <!-- Ether Battery Counter -->
-            <div class="currency-pill">
-                <input type="text"
-                       inputmode="numeric"
-                       class="currency-input"
-                       maxlength="8"
-                       value="@etherInputStr"
-                       @oninput="e => etherInputStr = e.Value?.ToString() ?? string.Empty"
-                       @onblur="CommitEther"
-                       @onkeydown="e => HandleCurrencyKeyDown(e, CommitEther)"
-                       @onkeydown:stopPropagation="true"
-                       onfocus="this.select()"
-                       title="Ether Battery (Editable)" />
-                <img class="currency-icon" src="assets/Item_Ether_Battery.webp" alt="Ether Battery" />
-            </div>
-
-            <!-- Hi-Fi Master Copy Counter -->
-            <div class="currency-pill">
-                <input type="text"
-                       inputmode="numeric"
-                       class="currency-input"
-                       maxlength="8"
-                       value="@hifiInputStr"
-                       @oninput="e => hifiInputStr = e.Value?.ToString() ?? string.Empty"
-                       @onblur="CommitHiFi"
-                       @onkeydown="e => HandleCurrencyKeyDown(e, CommitHiFi)"
-                       @onkeydown:stopPropagation="true"
-                       onfocus="this.select()"
-                       title="Hi-Fi Master Copies (Editable)" />
-                <img class="currency-icon" src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Hi-Fi Master Copy" />
-            </div>
-        </div>
-    </header>
+    <!-- Top Header Bar Component -->
+    <HeaderBar OnOpenStorage="OpenStorageModal" OnReset="ResetInitial" />
 
     <!-- Main Content Area -->
     <div class="tuning-main-content">
@@ -472,9 +414,6 @@
     private string obtainModalSource = "ROUTINE";
     private bool showStorageModal = false;
     private List<Disc> modalDiscs = new();
-    private string batteryInputStr = "000240";
-    private string etherInputStr = "000000";
-    private string hifiInputStr = "000000";
     private SimulationRunResult? lastRunSummary;
 
     private RoutineCleanupStage GetCurrentStage()
@@ -499,7 +438,7 @@
     {
         int chargePerDay = Sim.State.WithDailyCoffee ? 300 : 240;
         Sim.State.BatteryCharge = days * chargePerDay;
-        SyncCurrencyInputs();
+        Sim.NotifyStateChanged();
         await SaveState();
     }
 
@@ -585,7 +524,6 @@
             showObtainModal = true;
         }
 
-        SyncCurrencyInputs();
         await SaveState();
     }
 
@@ -606,13 +544,10 @@
             Sim.State.EtherBatteries = 0;
             Sim.State.HiFiMasterCopies = 0;
         }
-
-        SyncCurrencyInputs();
     }
 
     private void HandleSimStateChanged()
     {
-        SyncCurrencyInputs();
         StateHasChanged();
     }
 
@@ -730,7 +665,7 @@
         lastRunSummary = null;
         showObtainModal = false;
         showStorageModal = false;
-        SyncCurrencyInputs();
+        Sim.NotifyStateChanged();
         await Storage.ClearStateAsync();
         await SaveState();
     }
@@ -738,75 +673,6 @@
     private async Task SaveState()
     {
         await Storage.SaveStateAsync(Sim.State);
-    }
-
-    private void SyncCurrencyInputs()
-    {
-        batteryInputStr = FormatDigits(Sim.State.BatteryCharge);
-        etherInputStr = FormatDigits(Sim.State.EtherBatteries);
-        hifiInputStr = FormatDigits(Sim.State.HiFiMasterCopies);
-    }
-
-    private string FormatDigits(int value)
-    {
-        if (value < 0) value = 0;
-        return value.ToString("D6");
-    }
-
-    private async void CommitBattery()
-    {
-        string digitsOnly = new string((batteryInputStr ?? "").Where(char.IsDigit).ToArray());
-        if (int.TryParse(digitsOnly, out int val))
-        {
-            Sim.State.BatteryCharge = Math.Max(0, val);
-        }
-        else
-        {
-            Sim.State.BatteryCharge = 0;
-        }
-        batteryInputStr = FormatDigits(Sim.State.BatteryCharge);
-        StateHasChanged();
-        await SaveState();
-    }
-
-    private async void CommitEther()
-    {
-        string digitsOnly = new string((etherInputStr ?? "").Where(char.IsDigit).ToArray());
-        if (int.TryParse(digitsOnly, out int val))
-        {
-            Sim.State.EtherBatteries = Math.Max(0, val);
-        }
-        else
-        {
-            Sim.State.EtherBatteries = 0;
-        }
-        etherInputStr = FormatDigits(Sim.State.EtherBatteries);
-        StateHasChanged();
-        await SaveState();
-    }
-
-    private async void CommitHiFi()
-    {
-        string digitsOnly = new string((hifiInputStr ?? "").Where(char.IsDigit).ToArray());
-        if (int.TryParse(digitsOnly, out int val))
-        {
-            Sim.State.HiFiMasterCopies = Math.Max(0, val);
-        }
-        else
-        {
-            Sim.State.HiFiMasterCopies = 0;
-        }
-        hifiInputStr = FormatDigits(Sim.State.HiFiMasterCopies);
-        StateHasChanged();
-        await SaveState();
-    }
-
-    private void HandleCurrencyKeyDown(KeyboardEventArgs e, Action commitAction)
-    {
-        if (e.Key == "Enter")
-        {
-            commitAction();
-        }
     }
 
     private IEnumerable<StatType> GetPossibleMainStats(int partition)
