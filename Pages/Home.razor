@@ -406,9 +406,9 @@
      "OBTAIN" MODAL POPUP
      ========================================================================== -->
 @if (showObtainModal)
-{
-    <div class="modal-backdrop-overlay" @onclick="CloseObtainModal">
-        <div class="obtain-modal-window" @onclick:stopPropagation="true">            <div class="obtain-header">
+{    <div class="modal-backdrop-overlay obtain-backdrop" @onclick="CloseObtainModal">
+        <div class="obtain-modal-window" data-watermark="@obtainModalSource" @onclick:stopPropagation="true">
+            <div class="obtain-header">
                 <div class="obtain-title-group">
                     <div class="obtain-title">Obtain</div>
                     @if (lastRunSummary != null && lastRunSummary.DropRecords.Count > 0)
@@ -430,113 +430,119 @@
             </div>
 
             <div class="obtain-body">
-                <!-- Left 5-Column Disc Grid -->
-                <div class="obtain-disc-grid">
-                    @foreach (var disc in modalDiscs)
-                    {
-                        var isSelected = inspectedModalDisc?.Id == disc.Id;
-                        var record = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
-                        var isDismantled = record != null && !record.IsKept;
-                        <div class="s-rank-disc-card"
-                             @onclick="() => SelectModalDisc(disc)">
-                            <DiscSlot Disc="disc" IsSelected="isSelected" IsDismantled="isDismantled" Size="92px" />
+                    <!-- Left 6-Column Disc Grid Section -->
+                    <div class="obtain-left-section">
+                        <div class="obtain-subtitle">Use @(lastRunSummary?.Runs ?? 1) times to obtain:</div>
+                        <div class="obtain-disc-grid">
+                            @foreach (var disc in modalDiscs)
+                            {
+                                var isSelected = inspectedModalDisc?.Id == disc.Id;
+                                var record = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
+                                var isDismantled = record != null && !record.IsKept;
+                                <div class="s-rank-disc-card @(isSelected ? "selected" : "")"
+                                     @onclick="() => SelectModalDisc(disc)">
+                                    <DiscSlot Disc="disc" IsSelected="isSelected" IsDismantled="isDismantled" Size="80px" />
+                                    <span class="obtain-item-qty">1</span>
+                                </div>
+                            }
                         </div>
-                    }
-                </div>
+                    </div>
 
-                <!-- Right Detail Panel -->
-                <div class="obtain-detail-panel">
-                    @if (inspectedModalDisc != null)
-                    {
-                        var inspectedRecord = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedModalDisc.Id);
-                        var isDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
-
-                        @if (inspectedRecord != null)
+                    <!-- Right Detail Panel -->
+                    <!-- Right Detail Panel (Authentic ZZZ Card Style) -->
+                    <div class="obtain-detail-panel">
+                        @if (inspectedModalDisc != null)
                         {
-                            <div class="obtain-status-banner @(isDismantled ? "dismantled" : "kept")">
-                                <span class="status-pill">@(isDismantled ? "AUTO-DISMANTLED" : "KEPT IN INVENTORY")</span>
-                                @if (isDismantled && !string.IsNullOrEmpty(inspectedRecord.DismantleReason))
-                                {
-                                    <span class="dismantle-reason-text">@inspectedRecord.DismantleReason</span>
-                                }
-                            </div>
-                        }
+                            var inspectedRecord = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedModalDisc.Id);
+                            var isDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
+                            var discPriorities = Sim.State.GetPrioritizedSubstatsForPartition(inspectedModalDisc.Partition);
 
-                        <div class="obtain-detail-disc-header" style="display: flex; align-items: center; gap: 0.85rem; margin-bottom: 0.75rem;">
-                            <DiscSlot Disc="inspectedModalDisc" Size="80px" />
-                            <div>
-                                <div class="detail-title">Partition @inspectedModalDisc.Partition disc</div>
-                                <div class="detail-set-title">@Disc.FormatSetName(inspectedModalDisc.Set)</div>
-                            </div>
-                        </div>
-
-                        <div class="detail-stats-section">
-                            <div class="detail-main-stat-box">
-                                <div class="main-stat-label">Main Stat</div>
-                                <div class="main-stat-value">
-                                    @Disc.FormatStatName(inspectedModalDisc.MainStat)
-                                    +@Disc.FormatStatValue(inspectedModalDisc.MainStat, inspectedModalDisc.MainStatValue)
+                            <!-- Textured Black Diamond Header Bar -->
+                            <div class="detail-header-bar">
+                                <div class="detail-eyebrow">DETAIL</div>
+                                <div class="detail-title-row">
+                                    <div class="detail-title-col">
+                                        <div class="detail-set-title">@Disc.FormatSetName(inspectedModalDisc.Set)</div>
+                                        <div class="detail-sub-name">Partition @inspectedModalDisc.Partition Drive Disc</div>
+                                    </div>
+                                    <img src="assets/Icon_Item_Rank_S.webp" alt="S-Rank" class="detail-rank-s-icon" />
                                 </div>
                             </div>
 
-                            @{
-                                var discPriorities = Sim.State.GetPrioritizedSubstatsForPartition(inspectedModalDisc.Partition);
-                            }
-                            <div class="detail-substats-box">
-                                <div class="detail-substats-header">Substats (@inspectedModalDisc.Substats.Count)</div>
-                                <ul class="detail-substats-list">
-                                    @foreach (var sub in inspectedModalDisc.Substats)
+                            <!-- Solid Black Detail Body Content -->
+                            <div class="detail-body-content">
+                                <!-- Top Metadata Line -->
+                                <div class="detail-top-meta">Partition [@inspectedModalDisc.Partition] • Lv. 0</div>
+
+                                @if (inspectedRecord != null)
+                                {
+                                    <div class="detail-status-line @(isDismantled ? "dismantled" : "kept")">
+                                        @(isDismantled ? $"Auto-Dismantled: {inspectedRecord.DismantleReason}" : "Kept in Inventory")
+                                    </div>
+                                }
+
+                                <!-- Main Stat -->
+                                <div class="detail-section">
+                                    <div class="detail-section-label">Main Stat</div>
+                                    <div class="detail-stat-val main">
+                                        @Disc.FormatStatName(inspectedModalDisc.MainStat)
+                                        +@Disc.FormatStatValue(inspectedModalDisc.MainStat, inspectedModalDisc.MainStatValue)
+                                    </div>
+                                </div>
+
+                                <!-- Substats List -->
+                                <div class="detail-section">
+                                    <div class="detail-section-label">Substats (@inspectedModalDisc.Substats.Count)</div>
+                                    <ul class="detail-substats-list">
+                                        @foreach (var sub in inspectedModalDisc.Substats)
+                                        {
+                                            var priorityIdx = discPriorities.IndexOf(sub.Stat);
+                                            var isPrioritized = priorityIdx >= 0;
+                                            <li class="detail-substat-item @(isPrioritized ? "prioritized" : "")">
+                                                <span class="substat-bullet">•</span>
+                                                <span class="substat-name">@Disc.FormatStatName(sub.Stat)</span>
+                                                <span class="substat-val">+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+
+                                <!-- Evaluation Metrics (CV / RV) -->
+                                <div class="detail-metrics-line">
+                                    <span>CRIT VALUE <strong>@inspectedModalDisc.GetCritValue().ToString("0.0")</strong></span>
+                                    <span>ROLL VALUE <strong>@inspectedModalDisc.GetRollValue(discPriorities)/4</strong></span>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div class="detail-actions-row">
+                                    @if (!isDismantled)
                                     {
-                                        var priorityIdx = discPriorities.IndexOf(sub.Stat);
-                                        var isPrioritized = priorityIdx >= 0;
-                                        <li class="detail-substat-item @(isPrioritized ? "is-prioritized" : "")">
-                                            <div class="substat-name-col">
-                                                @if (isPrioritized)
-                                                {
-                                                    <span class="sub-priority-badge">#@(priorityIdx + 1)</span>
-                                                }
-                                                <span>@Disc.FormatStatName(sub.Stat)</span>
-                                            </div>
-                                            <span>+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
-                                        </li>
+                                        <button type="button" class="btn-detail" @onclick="() => ToggleLock(inspectedModalDisc)">
+                                            @(inspectedModalDisc.IsLocked ? "Unlock" : "Lock")
+                                        </button>
+                                        <button type="button" class="btn-detail danger"
+                                                disabled="@inspectedModalDisc.IsLocked"
+                                                @onclick="() => DismantleModalDisc(inspectedModalDisc)">
+                                            Dismantle (+1)
+                                        </button>
                                     }
-                                </ul>
+                                    else
+                                    {
+                                        <button type="button" class="btn-detail danger" disabled>
+                                            Already Dismantled (+1 Copy)
+                                        </button>
+                                    }
+                                </div>
                             </div>
-
-                            <div class="detail-scores-row">
-                                <span class="score-tag cv">CV: @inspectedModalDisc.GetCritValue()</span>
-                                <span class="score-tag rv">RV: @inspectedModalDisc.GetRollValue(discPriorities)/4</span>
+                        }
+                        else
+                        {
+                            <div class="detail-empty-placeholder">
+                                No disc selected.
                             </div>
-                        </div>
-
-                        <div class="detail-actions-row">
-                            @if (!isDismantled)
-                            {
-                                <button type="button" class="btn-detail" @onclick="() => ToggleLock(inspectedModalDisc)">
-                                    @(inspectedModalDisc.IsLocked ? "Unlock" : "Lock")
-                                </button>
-                                <button type="button" class="btn-detail danger"
-                                        disabled="@inspectedModalDisc.IsLocked"
-                                        @onclick="() => DismantleModalDisc(inspectedModalDisc)">
-                                    Dismantle (+1)
-                                </button>
-                            }
-                            else
-                            {
-                                <button type="button" class="btn-detail danger" disabled>
-                                    Already Dismantled (+1 Copy)
-                                </button>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <div style="color: #6b7280; text-align: center; margin-top: 4rem;">
-                            No disc selected.
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
-            </div>
         </div>
     </div>
 }
@@ -820,6 +826,7 @@
             : AllSelectableSets.Where(s => Disc.FormatSetName(s).Contains(discSearchQuery, StringComparison.OrdinalIgnoreCase));
 
     private bool showObtainModal = false;
+    private string obtainModalSource = "ROUTINE";
     private bool showStorageModal = false;
     private List<Disc> modalDiscs = new();
     private Disc? inspectedModalDisc;
@@ -932,6 +939,7 @@
         // 4. Always show Obtain Modal with all drops
         if (result.GeneratedDiscs.Count > 0)
         {
+            obtainModalSource = "ROUTINE";
             modalDiscs = result.GeneratedDiscs;
             inspectedModalDisc = modalDiscs.FirstOrDefault();
             showObtainModal = true;
@@ -1047,6 +1055,7 @@
 
         if (modalDiscs.Count > 0)
         {
+            obtainModalSource = "TUNING";
             inspectedModalDisc = modalDiscs.FirstOrDefault();
             showObtainModal = true;
             await SaveState();
