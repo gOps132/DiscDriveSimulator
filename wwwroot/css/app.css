@@ -1,6 +1,9 @@
 /* Global Reset, Fonts, and Viewport Shell */
 @import url('base.css');
 
+/* Shared ZZZ Modal Design System */
+@import url('modal-common.css');
+
 /* Bardic Needle Tuning Room & Circular Drive Bay Console */
 @import url('tuning.css');
 

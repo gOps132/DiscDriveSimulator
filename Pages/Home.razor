@@ -407,15 +407,15 @@
      ========================================================================== -->
 @if (showObtainModal)
 {    <div class="modal-backdrop-overlay obtain-backdrop" @onclick="CloseObtainModal">
-        <div class="obtain-modal-window" data-watermark="@obtainModalSource" @onclick:stopPropagation="true">
-            <div class="obtain-header">
-                <div class="obtain-title-group">
-                    <div class="obtain-title">Obtain</div>
+        <div class="zzz-modal-window obtain-modal-window" data-watermark="@obtainModalSource" @onclick:stopPropagation="true">
+            <div class="zzz-modal-header">
+                <div class="zzz-modal-title-group">
+                    <div class="zzz-modal-title">Obtain</div>
                     @if (lastRunSummary != null && lastRunSummary.DropRecords.Count > 0)
                     {
                         var keptCount = lastRunSummary.DropRecords.Count(r => r.IsKept);
                         var dismantledCount = lastRunSummary.DropRecords.Count(r => !r.IsKept);
-                        <div class="obtain-counts-sub">
+                        <div class="zzz-modal-counts-sub">
                             <span class="count-kept">@keptCount Kept</span>
                             @if (dismantledCount > 0)
                             {
@@ -424,7 +424,7 @@
                         </div>
                     }
                 </div>
-                <button type="button" class="obtain-close-btn" @onclick="CloseObtainModal" title="Close">
+                <button type="button" class="zzz-close-btn" @onclick="CloseObtainModal" title="Close">
                     <img src="assets/IconCancel.png" alt="Close" />
                 </button>
             </div>
@@ -448,100 +448,23 @@
                         </div>
                     </div>
 
-                    <!-- Right Detail Panel -->
-                    <!-- Right Detail Panel (Authentic ZZZ Card Style) -->
-                    <div class="obtain-detail-panel">
-                        @if (inspectedModalDisc != null)
-                        {
-                            var inspectedRecord = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedModalDisc.Id);
-                            var isDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
-                            var discPriorities = Sim.State.GetPrioritizedSubstatsForPartition(inspectedModalDisc.Partition);
-
-                            <!-- Textured Black Diamond Header Bar -->
-                            <div class="detail-header-bar">
-                                <div class="detail-eyebrow">DETAIL</div>
-                                <div class="detail-title-row">
-                                    <div class="detail-title-col">
-                                        <div class="detail-set-title">@Disc.FormatSetName(inspectedModalDisc.Set)</div>
-                                        <div class="detail-sub-name">Partition @inspectedModalDisc.Partition Drive Disc</div>
-                                    </div>
-                                    <img src="assets/Icon_Item_Rank_S.webp" alt="S-Rank" class="detail-rank-s-icon" />
-                                </div>
-                            </div>
-
-                            <!-- Solid Black Detail Body Content -->
-                            <div class="detail-body-content">
-                                <!-- Top Metadata Line -->
-                                <div class="detail-top-meta">Partition [@inspectedModalDisc.Partition] • Lv. 0</div>
-
-                                @if (inspectedRecord != null)
-                                {
-                                    <div class="detail-status-line @(isDismantled ? "dismantled" : "kept")">
-                                        @(isDismantled ? $"Auto-Dismantled: {inspectedRecord.DismantleReason}" : "Kept in Inventory")
-                                    </div>
-                                }
-
-                                <!-- Main Stat -->
-                                <div class="detail-section">
-                                    <div class="detail-section-label">Main Stat</div>
-                                    <div class="detail-stat-val main">
-                                        @Disc.FormatStatName(inspectedModalDisc.MainStat)
-                                        +@Disc.FormatStatValue(inspectedModalDisc.MainStat, inspectedModalDisc.MainStatValue)
-                                    </div>
-                                </div>
-
-                                <!-- Substats List -->
-                                <div class="detail-section">
-                                    <div class="detail-section-label">Substats (@inspectedModalDisc.Substats.Count)</div>
-                                    <ul class="detail-substats-list">
-                                        @foreach (var sub in inspectedModalDisc.Substats)
-                                        {
-                                            var priorityIdx = discPriorities.IndexOf(sub.Stat);
-                                            var isPrioritized = priorityIdx >= 0;
-                                            <li class="detail-substat-item @(isPrioritized ? "prioritized" : "")">
-                                                <span class="substat-bullet">•</span>
-                                                <span class="substat-name">@Disc.FormatStatName(sub.Stat)</span>
-                                                <span class="substat-val">+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
-                                            </li>
-                                        }
-                                    </ul>
-                                </div>
-
-                                <!-- Evaluation Metrics (CV / RV) -->
-                                <div class="detail-metrics-line">
-                                    <span>CRIT VALUE <strong>@inspectedModalDisc.GetCritValue().ToString("0.0")</strong></span>
-                                    <span>ROLL VALUE <strong>@inspectedModalDisc.GetRollValue(discPriorities)/4</strong></span>
-                                </div>
-
-                                <!-- Action Buttons -->
-                                <div class="detail-actions-row">
-                                    @if (!isDismantled)
-                                    {
-                                        <button type="button" class="btn-detail" @onclick="() => ToggleLock(inspectedModalDisc)">
-                                            @(inspectedModalDisc.IsLocked ? "Unlock" : "Lock")
-                                        </button>
-                                        <button type="button" class="btn-detail danger"
-                                                disabled="@inspectedModalDisc.IsLocked"
-                                                @onclick="() => DismantleModalDisc(inspectedModalDisc)">
-                                            Dismantle (+1)
-                                        </button>
-                                    }
-                                    else
-                                    {
-                                        <button type="button" class="btn-detail danger" disabled>
-                                            Already Dismantled (+1 Copy)
-                                        </button>
-                                    }
-                                </div>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="detail-empty-placeholder">
-                                No disc selected.
-                            </div>
-                        }
-                    </div>
+                    <!-- Right Detail Panel (Templatized Reusable ZZZ Component) -->
+                    @{
+                        var inspectedRecord = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedModalDisc?.Id);
+                        var modalDiscIsDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
+                        var discPriorities = inspectedModalDisc != null
+                            ? Sim.State.GetPrioritizedSubstatsForPartition(inspectedModalDisc.Partition)
+                            : null;
+                        var statusMsg = inspectedRecord != null
+                            ? (modalDiscIsDismantled ? $"Auto-Dismantled: {inspectedRecord.DismantleReason}" : "Kept in Inventory")
+                            : null;
+                    }
+                    <DiscDetailCard Disc="inspectedModalDisc"
+                                    DesiredStats="discPriorities"
+                                    StatusText="@statusMsg"
+                                    IsDismantled="modalDiscIsDismantled"
+                                    OnLockToggle="ToggleLock"
+                                    OnDismantle="DismantleModalDisc" />
                 </div>
         </div>
     </div>
@@ -557,15 +480,15 @@
     var selectedCount = Sim.State.Inventory.Count(d => d.IsSelected && !d.IsLocked);
 
     <div class="modal-backdrop-overlay" @onclick="CloseStorageModal">
-        <div class="storage-modal-window" @onclick:stopPropagation="true">
+        <div class="zzz-modal-window storage-modal-window" data-watermark="INVENTORY" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="storage-header">
-                <div class="storage-header-left">
-                    <img src="assets/Icon_Storage.webp" alt="Storage" class="storage-title-icon" />
-                    <span class="storage-title">Drive Disc Storage</span>
-                    <span class="storage-count-pill">@filteredDiscs.Count / @Sim.State.Inventory.Count</span>
+            <div class="zzz-modal-header">
+                <div class="zzz-modal-title-group">
+                    <img src="assets/Icon_Storage.webp" alt="Storage" class="zzz-modal-title-icon" />
+                    <span class="zzz-modal-title">Drive Disc Storage</span>
+                    <span class="zzz-count-pill">@filteredDiscs.Count / @Sim.State.Inventory.Count</span>
                 </div>
-                <button type="button" class="obtain-close-btn" @onclick="CloseStorageModal" title="Close">
+                <button type="button" class="zzz-close-btn" @onclick="CloseStorageModal" title="Close">
                     <img src="assets/IconCancel.png" alt="Close" />
                 </button>
             </div>
@@ -698,78 +621,12 @@
                     }
                 </div>
 
-                <!-- Right Inspector -->
-                <div class="storage-inspector-panel">
-                    @if (inspectedStorageDisc != null)
-                    {
-                        <div class="inspector-card-inner">
-                            <div class="inspector-header">
-                                <div class="inspector-disc-main-info">
-                                    <DiscSlot Disc="inspectedStorageDisc" Size="80px" />
-                                    <div>
-                                        <div class="inspector-disc-title">Partition @inspectedStorageDisc.Partition Disc</div>
-                                        <div class="inspector-disc-set">@Disc.FormatSetName(inspectedStorageDisc.Set)</div>
-                                    </div>
-                                </div>
-                                <button type="button" class="btn-quick-lock" @onclick="() => ToggleLock(inspectedStorageDisc)"
-                                        title="@(inspectedStorageDisc.IsLocked ? "Unlock Disc" : "Lock Disc")">
-                                    <img src="@(inspectedStorageDisc.IsLocked ? "assets/Icon_Locked_03.png" : "assets/Icon_Locked_05.png")"
-                                         alt="Lock" class="lock-toggle-img" />
-                                </button>
-                            </div>
-
-                            <div class="inspector-main-stat">
-                                <div class="main-stat-label">Main Stat</div>
-                                <div class="main-stat-value">
-                                    @Disc.FormatStatName(inspectedStorageDisc.MainStat)
-                                    <span class="stat-num">+@Disc.FormatStatValue(inspectedStorageDisc.MainStat, inspectedStorageDisc.MainStatValue)</span>
-                                </div>
-                            </div>
-
-                            <div class="inspector-substats-box">
-                                <div class="substats-header-bar">
-                                    <span>Substats (@inspectedStorageDisc.Substats.Count)</span>
-                                    <span class="desired-legend">★ Desired</span>
-                                </div>
-                                <ul class="inspector-substats-list">
-                                    @foreach (var sub in inspectedStorageDisc.Substats)
-                                    {
-                                        var isDesired = Sim.State.DesiredStats.Contains(sub.Stat);
-                                        <li class="inspector-substat-item @(isDesired ? "desired" : "")">
-                                            <span class="substat-name">@(isDesired ? "★ " : "• ")@Disc.FormatStatName(sub.Stat)</span>
-                                            <span class="substat-val">+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
-                                        </li>
-                                    }
-                                </ul>
-                            </div>
-
-                            <div class="inspector-scores-block">
-                                <div class="score-metric">
-                                    <span class="metric-label">CRIT VALUE</span>
-                                    <span class="metric-num">@inspectedStorageDisc.GetCritValue().ToString("0.0")</span>
-                                </div>
-                                <div class="score-metric">
-                                    <span class="metric-label">ROLL VALUE</span>
-                                    <span class="metric-num">@inspectedStorageDisc.GetRollValue(Sim.State.DesiredStats) / 4</span>
-                                </div>
-                            </div>
-
-                            <div class="inspector-actions-block">
-                                <button type="button" class="btn-inspector-action danger"
-                                        disabled="@inspectedStorageDisc.IsLocked"
-                                        @onclick="() => DismantleSingleDisc(inspectedStorageDisc)">
-                                    <span>Dismantle (+1 Copy)</span>
-                                </button>
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="inspector-empty">
-                            <span>Select a disc to inspect</span>
-                        </div>
-                    }
-                </div>
+                <!-- Right Inspector (Templatized Reusable ZZZ Component) -->
+                <DiscDetailCard Disc="inspectedStorageDisc"
+                                DesiredStats="Sim.State.DesiredStats"
+                                EmptyText="Select a disc to inspect"
+                                OnLockToggle="ToggleLock"
+                                OnDismantle="DismantleSingleDisc" />
             </div>
         </div>
     </div>

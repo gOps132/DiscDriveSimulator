@@ -1,0 +1,106 @@
+@using System.Linq
+@using DiscDriveSimulator.Models
+
+<div class="zzz-detail-panel">
+    @if (Disc != null)
+    {
+        <!-- Header Bar -->
+        <div class="detail-header-bar">
+            <div class="detail-eyebrow">DETAIL</div>
+            <div class="detail-title-row">
+                <div class="detail-title-col">
+                    <div class="detail-set-title">@Disc.FormatSetName(Disc.Set)</div>
+                    <div class="detail-sub-name">Partition @Disc.Partition Drive Disc</div>
+                </div>
+                <img src="assets/Icon_Item_Rank_S.webp" alt="S-Rank" class="detail-rank-s-icon" />
+            </div>
+        </div>
+
+        <!-- Solid Black Detail Body Content -->
+        <div class="detail-body-content">
+            <!-- Top Metadata Line -->
+            <div class="detail-top-meta">Partition [@Disc.Partition] • Lv. 0</div>
+
+            @if (!string.IsNullOrEmpty(StatusText))
+            {
+                <div class="detail-status-line @(IsDismantled ? "dismantled" : "kept")">
+                    @StatusText
+                </div>
+            }
+
+            <!-- Main Stat -->
+            <div class="detail-section">
+                <div class="detail-section-label">Main Stat</div>
+                <div class="detail-stat-val main">
+                    @Disc.FormatStatName(Disc.MainStat)
+                    +@Disc.FormatStatValue(Disc.MainStat, Disc.MainStatValue)
+                </div>
+            </div>
+
+            <!-- Substats List -->
+            <div class="detail-section">
+                <div class="detail-section-label">Substats (@Disc.Substats.Count)</div>
+                <ul class="detail-substats-list">
+                    @foreach (var sub in Disc.Substats)
+                    {
+                        var isPrioritized = DesiredStats != null && DesiredStats.Contains(sub.Stat);
+                        <li class="detail-substat-item @(isPrioritized ? "prioritized" : "")">
+                            <span class="substat-bullet">•</span>
+                            <span class="substat-name">@Disc.FormatStatName(sub.Stat)</span>
+                            <span class="substat-val">+@Disc.FormatStatValue(sub.Stat, sub.Value)</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+
+            <!-- Evaluation Metrics (CV / RV) -->
+            <div class="detail-metrics-line">
+                <span>CRIT VALUE <strong>@Disc.GetCritValue().ToString("0.0")</strong></span>
+                <span>ROLL VALUE <strong>@(DesiredStats != null ? Disc.GetRollValue(DesiredStats) : 0)/4</strong></span>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="detail-actions-row">
+                @if (ExtraActions != null)
+                {
+                    @ExtraActions
+                }
+                else if (!IsDismantled)
+                {
+                    <button type="button" class="btn-detail" @onclick="() => OnLockToggle.InvokeAsync(Disc)">
+                        @(Disc.IsLocked ? "Unlock" : "Lock")
+                    </button>
+                    <button type="button" class="btn-detail danger"
+                            disabled="@Disc.IsLocked"
+                            @onclick="() => OnDismantle.InvokeAsync(Disc)">
+                        @DismantleButtonText
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="btn-detail danger" disabled>
+                        Already Dismantled (+1 Copy)
+                    </button>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="detail-empty-placeholder">
+            @EmptyText
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Disc? Disc { get; set; }
+    [Parameter] public IEnumerable<StatType>? DesiredStats { get; set; }
+    [Parameter] public string? StatusText { get; set; }
+    [Parameter] public bool IsDismantled { get; set; }
+    [Parameter] public string DismantleButtonText { get; set; } = "Dismantle (+1)";
+    [Parameter] public string EmptyText { get; set; } = "No disc selected.";
+    [Parameter] public EventCallback<Disc> OnLockToggle { get; set; }
+    [Parameter] public EventCallback<Disc> OnDismantle { get; set; }
+    [Parameter] public RenderFragment? ExtraActions { get; set; }
+}
