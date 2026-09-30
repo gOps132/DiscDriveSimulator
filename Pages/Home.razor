@@ -405,70 +405,12 @@
 <!-- ==========================================================================
      "OBTAIN" MODAL POPUP
      ========================================================================== -->
-@if (showObtainModal)
-{    <div class="modal-backdrop-overlay obtain-backdrop" @onclick="CloseObtainModal">
-        <div class="zzz-modal-window obtain-modal-window" data-watermark="@obtainModalSource" @onclick:stopPropagation="true">
-            <div class="zzz-modal-header">
-                <div class="zzz-modal-title-group">
-                    <div class="zzz-modal-title">Obtain</div>
-                    @if (lastRunSummary != null && lastRunSummary.DropRecords.Count > 0)
-                    {
-                        var keptCount = lastRunSummary.DropRecords.Count(r => r.IsKept);
-                        var dismantledCount = lastRunSummary.DropRecords.Count(r => !r.IsKept);
-                        <div class="zzz-modal-counts-sub">
-                            <span class="count-kept">@keptCount Kept</span>
-                            @if (dismantledCount > 0)
-                            {
-                                <span class="count-dismantled">• @dismantledCount Dismantled (+@dismantledCount Master Copies)</span>
-                            }
-                        </div>
-                    }
-                </div>
-                <button type="button" class="zzz-close-btn" @onclick="CloseObtainModal" title="Close">
-                    <img src="assets/IconCancel.png" alt="Close" />
-                </button>
-            </div>
+<ObtainModal IsOpen="showObtainModal"
+             Source="@obtainModalSource"
+             Discs="modalDiscs"
+             RunSummary="lastRunSummary"
+             OnClose="CloseObtainModal" />
 
-            <div class="obtain-body">
-                    <!-- Left 6-Column Disc Grid Section -->
-                    <div class="obtain-left-section">
-                        <div class="obtain-subtitle">Use @(lastRunSummary?.Runs ?? 1) times to obtain:</div>
-                        <div class="obtain-disc-grid">
-                            @foreach (var disc in modalDiscs)
-                            {
-                                var isSelected = inspectedModalDisc?.Id == disc.Id;
-                                var record = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
-                                var isDismantled = record != null && !record.IsKept;
-                                <div class="s-rank-disc-card @(isSelected ? "selected" : "")"
-                                     @onclick="() => SelectModalDisc(disc)">
-                                    <DiscSlot Disc="disc" IsSelected="isSelected" IsDismantled="isDismantled" Size="80px" />
-                                    <span class="obtain-item-qty">1</span>
-                                </div>
-                            }
-                        </div>
-                    </div>
-
-                    <!-- Right Detail Panel (Templatized Reusable ZZZ Component) -->
-                    @{
-                        var inspectedRecord = lastRunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedModalDisc?.Id);
-                        var modalDiscIsDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
-                        var discPriorities = inspectedModalDisc != null
-                            ? Sim.State.GetPrioritizedSubstatsForPartition(inspectedModalDisc.Partition)
-                            : null;
-                        var statusMsg = inspectedRecord != null
-                            ? (modalDiscIsDismantled ? $"Auto-Dismantled: {inspectedRecord.DismantleReason}" : "Kept in Inventory")
-                            : null;
-                    }
-                    <DiscDetailCard Disc="inspectedModalDisc"
-                                    DesiredStats="discPriorities"
-                                    StatusText="@statusMsg"
-                                    IsDismantled="modalDiscIsDismantled"
-                                    OnLockToggle="ToggleLock"
-                                    OnDismantle="DismantleModalDisc" />
-                </div>
-        </div>
-    </div>
-}
 
 <!-- ==========================================================================
      STORAGE & INVENTORY MODAL
@@ -530,7 +472,6 @@
     private string obtainModalSource = "ROUTINE";
     private bool showStorageModal = false;
     private List<Disc> modalDiscs = new();
-    private Disc? inspectedModalDisc;
     private string batteryInputStr = "000240";
     private string etherInputStr = "000000";
     private string hifiInputStr = "000000";
@@ -641,7 +582,6 @@
         {
             obtainModalSource = "ROUTINE";
             modalDiscs = result.GeneratedDiscs;
-            inspectedModalDisc = modalDiscs.FirstOrDefault();
             showObtainModal = true;
         }
 
@@ -756,7 +696,6 @@
         if (modalDiscs.Count > 0)
         {
             obtainModalSource = "TUNING";
-            inspectedModalDisc = modalDiscs.FirstOrDefault();
             showObtainModal = true;
             await SaveState();
         }
@@ -775,27 +714,6 @@
     private void CloseObtainModal()
     {
         showObtainModal = false;
-    }
-
-    private void SelectModalDisc(Disc disc)
-    {
-        inspectedModalDisc = disc;
-    }
-
-    private async Task DismantleModalDisc(Disc disc)
-    {
-        if (Sim.DismantleDisc(disc))
-        {
-            modalDiscs.Remove(disc);
-            inspectedModalDisc = modalDiscs.FirstOrDefault();
-            await SaveState();
-        }
-    }
-
-    private async Task ToggleLock(Disc disc)
-    {
-        disc.IsLocked = !disc.IsLocked;
-        await SaveState();
     }
 
     private async Task ResetInitial()

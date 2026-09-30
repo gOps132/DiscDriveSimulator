@@ -1,0 +1,124 @@
+@using System.Linq
+@using DiscDriveSimulator.Models
+@using DiscDriveSimulator.Services
+@inject ISimulationService Sim
+@inject StorageService Storage
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop-overlay obtain-backdrop" @onclick="Close">
+        <div class="zzz-modal-window obtain-modal-window" data-watermark="@Source" @onclick:stopPropagation="true">
+            <div class="zzz-modal-header">
+                <div class="zzz-modal-title-group">
+                    <div class="zzz-modal-title">Obtain</div>
+                    @if (RunSummary != null && RunSummary.DropRecords.Count > 0)
+                    {
+                        var keptCount = RunSummary.DropRecords.Count(r => r.IsKept);
+                        var dismantledCount = RunSummary.DropRecords.Count(r => !r.IsKept);
+                        <div class="zzz-modal-counts-sub">
+                            <span class="count-kept">@keptCount Kept</span>
+                            @if (dismantledCount > 0)
+                            {
+                                <span class="count-dismantled">• @dismantledCount Dismantled (+@dismantledCount Master Copies)</span>
+                            }
+                        </div>
+                    }
+                </div>
+                <button type="button" class="zzz-close-btn" @onclick="Close" title="Close">
+                    <img src="assets/IconCancel.png" alt="Close" />
+                </button>
+            </div>
+
+            <div class="obtain-body">
+                <!-- Left 6-Column Disc Grid Section -->
+                <div class="obtain-left-section">
+                    <div class="obtain-subtitle">Use @(RunSummary?.Runs ?? 1) times to obtain:</div>
+                    <div class="obtain-disc-grid">
+                        @foreach (var disc in Discs)
+                        {
+                            var isSelected = inspectedDisc?.Id == disc.Id;
+                            var record = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
+                            var isDismantled = record != null && !record.IsKept;
+                            <div class="s-rank-disc-card @(isSelected ? "selected" : "")"
+                                 @onclick="() => SelectDisc(disc)">
+                                <DiscSlot Disc="disc" IsSelected="isSelected" IsDismantled="isDismantled" Size="80px" />
+                                <span class="obtain-item-qty">1</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Right Detail Panel (Templatized Reusable ZZZ Component) -->
+                @{
+                    var inspectedRecord = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedDisc?.Id);
+                    var modalDiscIsDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
+                    var discPriorities = inspectedDisc != null
+                        ? Sim.State.GetPrioritizedSubstatsForPartition(inspectedDisc.Partition)
+                        : null;
+                    var statusMsg = inspectedRecord != null
+                        ? (modalDiscIsDismantled ? $"Auto-Dismantled: {inspectedRecord.DismantleReason}" : "Kept in Inventory")
+                        : null;
+                }
+                <DiscDetailCard Disc="inspectedDisc"
+                                DesiredStats="discPriorities"
+                                StatusText="@statusMsg"
+                                IsDismantled="modalDiscIsDismantled"
+                                OnLockToggle="ToggleLock"
+                                OnDismantle="DismantleDisc" />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string Source { get; set; } = "ROUTINE";
+    [Parameter] public List<Disc> Discs { get; set; } = new();
+    [Parameter] public SimulationRunResult? RunSummary { get; set; }
+
+    private Disc? inspectedDisc;
+
+    protected override void OnParametersSet()
+    {
+        if (IsOpen)
+        {
+            if (inspectedDisc == null || !Discs.Any(d => d.Id == inspectedDisc.Id))
+            {
+                inspectedDisc = Discs.FirstOrDefault();
+            }
+        }
+    }
+
+    private void SelectDisc(Disc disc)
+    {
+        inspectedDisc = disc;
+    }
+
+    private async Task DismantleDisc(Disc disc)
+    {
+        if (Sim.DismantleDisc(disc))
+        {
+            Discs.Remove(disc);
+            inspectedDisc = Discs.FirstOrDefault();
+            await SaveState();
+        }
+    }
+
+    private async Task ToggleLock(Disc disc)
+    {
+        disc.IsLocked = !disc.IsLocked;
+        await SaveState();
+        Sim.NotifyStateChanged();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task SaveState()
+    {
+        await Storage.SaveStateAsync(Sim.State);
+    }
+}
