@@ -229,34 +229,45 @@
 }
 
 .stage-badges-row {
-    display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 0.5rem;
 }
 
-.stage-set-badge {
-    background: rgba(255, 204, 0, 0.08);
-    border: 1px solid rgba(255, 204, 0, 0.25);
-    border-radius: 6px;
-    padding: 0.2rem 0.45rem;
+.stage-set-card {
+    background: #17181f;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.35rem 0.45rem;
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: 0.5rem;
+    min-width: 0;
+    transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.badge-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #ffcc00;
-    box-shadow: 0 0 6px #ffcc00;
+.stage-set-card:hover {
+    border-color: rgba(242, 169, 0, 0.45);
+    background: rgba(242, 169, 0, 0.04);
 }
 
-.badge-name {
-    font-size: 0.72rem;
-    font-weight: 800;
-    color: #ffcc00;
-    letter-spacing: 0.02em;
+.stage-set-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.stage-set-name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #e5e7eb;
+    line-height: 1.25;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 /* Coffee Toggle Box */
@@ -792,6 +803,167 @@
     font-weight: 600;
     color: #9ca3af;
     line-height: 1.45;
+}
+
+/* Target Disc Set Selector in Partition Info Card */
+.target-disc-set-box {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 0.5rem 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.target-disc-set-box:hover {
+    border-color: #f2a900;
+    background: rgba(242, 169, 0, 0.08);
+}
+
+.target-disc-thumb {
+    width: 44px;
+    height: 44px;
+    object-fit: contain;
+    flex-shrink: 0;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    pointer-events: none;
+}
+
+.target-disc-text-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    pointer-events: none;
+}
+
+.target-disc-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.target-disc-name {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.btn-change-disc:hover {
+    background: #f2a900;
+    color: #000000;
+    border-color: #f2a900;
+}
+
+.info-card-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 0.15rem 0;
+}
+
+/* Disc Selector Modal */
+.disc-selector-modal {
+    background: #14151b;
+    border: 2px solid #282a35;
+    border-radius: 16px;
+    width: 680px;
+    max-width: 95vw;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
+}
+
+.disc-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.disc-selector-title {
+    font-size: 1.15rem;
+    font-weight: 900;
+    color: #ffffff;
+}
+
+.disc-selector-search-box {
+    margin: 0.85rem 0 0.65rem 0;
+}
+
+.disc-selector-search-input {
+    width: 100%;
+    background: #0c0d10;
+    border: 1px solid #2b2e38;
+    border-radius: 8px;
+    padding: 0.55rem 0.85rem;
+    color: #ffffff;
+    font-size: 0.88rem;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.disc-selector-search-input:focus {
+    border-color: #f2a900;
+}
+
+.disc-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 0.65rem;
+    overflow-y: auto;
+    max-height: 55vh;
+    padding: 0.35rem 0.2rem;
+}
+
+.disc-selector-item {
+    background: #1a1c24;
+    border: 2px solid #2b2d39;
+    border-radius: 12px;
+    padding: 0.65rem 0.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.disc-selector-item:hover {
+    border-color: rgba(242, 169, 0, 0.6);
+    transform: translateY(-2px);
+}
+
+.disc-selector-item.selected {
+    border-color: #f2a900;
+    background: rgba(242, 169, 0, 0.1);
+}
+
+.disc-selector-item-img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+    pointer-events: none;
+}
+
+.disc-selector-item-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #e5e7eb;
+    line-height: 1.25;
+    pointer-events: none;
 }
 
 /* Right Main Console (Tuning Station) */

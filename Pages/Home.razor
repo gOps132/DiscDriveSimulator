@@ -97,13 +97,17 @@
                         var currentStage = GetCurrentStage();
                     }
                     <div class="stage-badges-row">
-                        <div class="stage-set-badge">
-                            <span class="badge-dot"></span>
-                            <span class="badge-name">@Disc.FormatSetName(currentStage.Set1)</span>
+                        <div class="stage-set-card" title="@Disc.FormatSetName(currentStage.Set1)">
+                            <DiscSlot Set="currentStage.Set1" ShowPartition="false" Size="48px" />
+                            <div class="stage-set-info">
+                                <span class="stage-set-name">@Disc.FormatSetName(currentStage.Set1)</span>
+                            </div>
                         </div>
-                        <div class="stage-set-badge">
-                            <span class="badge-dot"></span>
-                            <span class="badge-name">@Disc.FormatSetName(currentStage.Set2)</span>
+                        <div class="stage-set-card" title="@Disc.FormatSetName(currentStage.Set2)">
+                            <DiscSlot Set="currentStage.Set2" ShowPartition="false" Size="48px" />
+                            <div class="stage-set-info">
+                                <span class="stage-set-name">@Disc.FormatSetName(currentStage.Set2)</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -295,6 +299,17 @@
         <div class="bardic-needle-container ">
             <!-- Center Floating Partition Info Card -->
             <aside class="partition-info-card">
+                <!-- Target Disc Set Selector Row -->
+                <div class="target-disc-set-box" @onclick="OpenDiscSelectorModal" title="Click to choose Drive Disc type">
+                    <img src="@Disc.GetDiscImagePath(selectedCraftSet)" alt="@Disc.FormatSetName(selectedCraftSet)" class="target-disc-thumb" />
+                    <div class="target-disc-text-group">
+                        <span class="target-disc-label">Target Drive Disc</span>
+                        <span class="target-disc-name">@Disc.FormatSetName(selectedCraftSet)</span>
+                    </div>
+                </div>
+
+                <div class="info-card-divider"></div>
+
                 @if (selectedPartition.HasValue)
                 {
                     <div class="info-title">Partition @selectedPartition.Value (Selected)</div>
@@ -339,8 +354,8 @@
 
                 <div class="console-notice-text">
                     @(selectedPartition.HasValue
-                        ? "Guaranteed S-Rank Drive Disc for the selected partition"
-                        : "Guaranteed S-Rank Drive Disc for a random partition (1-6)")
+                        ? $"Guaranteed S-Rank {Disc.FormatSetName(selectedCraftSet)} Drive Disc for Partition {selectedPartition.Value}"
+                        : $"Guaranteed S-Rank {Disc.FormatSetName(selectedCraftSet)} Drive Disc for a random partition (1-6)")
                 </div>
 
                 <!-- Action Buttons: Tune x01 & Tune x10 -->
@@ -748,9 +763,56 @@
     </div>
 }
 
+@if (showDiscSelectorModal)
+{
+    <div class="modal-backdrop-overlay" @onclick="CloseDiscSelectorModal">
+        <div class="disc-selector-modal" @onclick:stopPropagation="true">
+            <div class="disc-selector-header">
+                <div class="disc-selector-title">Select Target Drive Disc</div>
+                <button type="button" class="obtain-close-btn" @onclick="CloseDiscSelectorModal" title="Close">
+                    <img src="assets/IconCancel.png" alt="Close" />
+                </button>
+            </div>
+
+            <div class="disc-selector-search-box">
+                <input type="text"
+                       class="disc-selector-search-input"
+                       placeholder="Search drive disc by name..."
+                       value="@discSearchQuery"
+                       @oninput="(e) => discSearchQuery = e.Value?.ToString() ?? string.Empty" />
+            </div>
+
+            <div class="disc-selector-grid">
+                @foreach (var set in FilteredDiscSets)
+                {
+                    var isCurrent = selectedCraftSet == set;
+                    <div class="disc-selector-item @(isCurrent ? "selected" : "")"
+                         @onclick="() => SelectDiscSet(set)">
+                        <img src="@Disc.GetDiscImagePath(set)" alt="@Disc.FormatSetName(set)" class="disc-selector-item-img" />
+                        <span class="disc-selector-item-name">@Disc.FormatSetName(set)</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private ElementReference tuningScreenRef;
     private int? selectedPartition = null;
+    private DiscSet selectedCraftSet = DiscSet.SwingJazz;
+    private bool showDiscSelectorModal = false;
+    private string discSearchQuery = string.Empty;
+
+    private static readonly DiscSet[] AllSelectableSets = Enum.GetValues<DiscSet>()
+        .Where(s => s != DiscSet.SetAlpha && s != DiscSet.SetBeta)
+        .ToArray();
+
+    private IEnumerable<DiscSet> FilteredDiscSets =>
+        string.IsNullOrWhiteSpace(discSearchQuery)
+            ? AllSelectableSets
+            : AllSelectableSets.Where(s => Disc.FormatSetName(s).Contains(discSearchQuery, StringComparison.OrdinalIgnoreCase));
+
     private bool showObtainModal = false;
     private bool showStorageModal = false;
     private List<Disc> modalDiscs = new();
@@ -878,6 +940,7 @@
         {
             Sim.SetState(savedState);
             selectedPartition = Sim.State.SelectedCraftPartition;
+            selectedCraftSet = Sim.State.SelectedCraftSet;
         }
         else
         {
@@ -921,6 +984,28 @@
         }
     }
 
+    private void OpenDiscSelectorModal()
+    {
+        discSearchQuery = string.Empty;
+        showDiscSelectorModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseDiscSelectorModal()
+    {
+        showDiscSelectorModal = false;
+        StateHasChanged();
+    }
+
+    private async Task SelectDiscSet(DiscSet set)
+    {
+        selectedCraftSet = set;
+        Sim.State.SelectedCraftSet = set;
+        showDiscSelectorModal = false;
+        await SaveState();
+        Sim.NotifyStateChanged();
+    }
+
     private void HandleKeyDown(KeyboardEventArgs e)
     {
         if (int.TryParse(e.Key, out int num) && num >= 1 && num <= 6)
@@ -929,7 +1014,8 @@
         }
         else if (e.Key == "Escape")
         {
-            if (showObtainModal) CloseObtainModal();
+            if (showDiscSelectorModal) CloseDiscSelectorModal();
+            else if (showObtainModal) CloseObtainModal();
             else if (showStorageModal) CloseStorageModal();
         }
     }
@@ -942,7 +1028,7 @@
         modalDiscs.Clear();
         for (int i = 0; i < count; i++)
         {
-            var disc = Sim.CraftSingle(selectedPartition);
+            var disc = Sim.CraftSingle(selectedPartition, selectedCraftSet);
             if (disc != null)
             {
                 modalDiscs.Add(disc);
@@ -1116,6 +1202,8 @@
         Sim.State.HiFiMasterCopies = 0;
         selectedPartition = null;
         Sim.State.SelectedCraftPartition = null;
+        selectedCraftSet = DiscSet.SwingJazz;
+        Sim.State.SelectedCraftSet = DiscSet.SwingJazz;
         Sim.State.SelectedCleanupStageId = "stage_1";
         inspectedStorageDisc = null;
         lastRunSummary = null;
