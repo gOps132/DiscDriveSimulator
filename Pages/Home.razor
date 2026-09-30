@@ -360,55 +360,18 @@
 <StorageModal IsOpen="showStorageModal" OnClose="CloseStorageModal" />
 
 
-@if (showDiscSelectorModal)
-{
-    <div class="modal-backdrop-overlay" @onclick="CloseDiscSelectorModal">
-        <div class="disc-selector-modal" @onclick:stopPropagation="true">
-            <div class="disc-selector-header">
-                <div class="disc-selector-title">Select Target Drive Disc</div>
-                <button type="button" class="obtain-close-btn" @onclick="CloseDiscSelectorModal" title="Close">
-                    <img src="assets/IconCancel.png" alt="Close" />
-                </button>
-            </div>
+<!-- Disc Set Selector Modal Component -->
+<DiscSetPickerModal IsOpen="showDiscSelectorModal"
+                    CurrentSet="selectedCraftSet"
+                    OnSelectSet="SelectDiscSet"
+                    OnClose="CloseDiscSelectorModal" />
 
-            <div class="disc-selector-search-box">
-                <input type="text"
-                       class="disc-selector-search-input"
-                       placeholder="Search drive disc by name..."
-                       value="@discSearchQuery"
-                       @oninput="(e) => discSearchQuery = e.Value?.ToString() ?? string.Empty" />
-            </div>
-
-            <div class="disc-selector-grid">
-                @foreach (var set in FilteredDiscSets)
-                {
-                    var isCurrent = selectedCraftSet == set;
-                    <div class="disc-selector-item @(isCurrent ? "selected" : "")"
-                         @onclick="() => SelectDiscSet(set)">
-                        <img src="@Disc.GetDiscImagePath(set)" alt="@Disc.FormatSetName(set)" class="disc-selector-item-img" />
-                        <span class="disc-selector-item-name">@Disc.FormatSetName(set)</span>
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
-}
 
 @code {
     private ElementReference tuningScreenRef;
     private int? selectedPartition = null;
     private DiscSet selectedCraftSet = DiscSet.SwingJazz;
     private bool showDiscSelectorModal = false;
-    private string discSearchQuery = string.Empty;
-
-    private static readonly DiscSet[] AllSelectableSets = Enum.GetValues<DiscSet>()
-        .Where(s => s != DiscSet.SetAlpha && s != DiscSet.SetBeta)
-        .ToArray();
-
-    private IEnumerable<DiscSet> FilteredDiscSets =>
-        string.IsNullOrWhiteSpace(discSearchQuery)
-            ? AllSelectableSets
-            : AllSelectableSets.Where(s => Disc.FormatSetName(s).Contains(discSearchQuery, StringComparison.OrdinalIgnoreCase));
 
     private bool showObtainModal = false;
     private string obtainModalSource = "ROUTINE";
@@ -579,15 +542,12 @@
 
     private void OpenDiscSelectorModal()
     {
-        discSearchQuery = string.Empty;
         showDiscSelectorModal = true;
-        StateHasChanged();
     }
 
     private void CloseDiscSelectorModal()
     {
         showDiscSelectorModal = false;
-        StateHasChanged();
     }
 
     private async Task SelectDiscSet(DiscSet set)

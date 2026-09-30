@@ -1,0 +1,74 @@
+@using System.Linq
+@using DiscDriveSimulator.Models
+
+@if (IsOpen)
+{
+    <div class="modal-backdrop-overlay" @onclick="Close">
+        <div class="disc-selector-modal" @onclick:stopPropagation="true">
+            <div class="disc-selector-header">
+                <div class="disc-selector-title">Select Target Drive Disc</div>
+                <button type="button" class="obtain-close-btn" @onclick="Close" title="Close">
+                    <img src="assets/IconCancel.png" alt="Close" />
+                </button>
+            </div>
+
+            <div class="disc-selector-search-box">
+                <input type="text"
+                       class="disc-selector-search-input"
+                       placeholder="Search drive disc by name..."
+                       value="@searchQuery"
+                       @oninput="(e) => searchQuery = e.Value?.ToString() ?? string.Empty" />
+            </div>
+
+            <div class="disc-selector-grid">
+                @foreach (var set in FilteredDiscSets)
+                {
+                    var isCurrent = CurrentSet == set;
+                    <div class="disc-selector-item @(isCurrent ? "selected" : "")"
+                         @onclick="() => SelectSet(set)">
+                        <img src="@Disc.GetDiscImagePath(set)" alt="@Disc.FormatSetName(set)" class="disc-selector-item-img" />
+                        <span class="disc-selector-item-name">@Disc.FormatSetName(set)</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public DiscSet CurrentSet { get; set; } = DiscSet.SwingJazz;
+    [Parameter] public EventCallback<DiscSet> OnSelectSet { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private string searchQuery = string.Empty;
+    private bool wasOpen = false;
+
+    private static readonly DiscSet[] AllSelectableSets = Enum.GetValues<DiscSet>()
+        .Where(s => s != DiscSet.SetAlpha && s != DiscSet.SetBeta)
+        .ToArray();
+
+    private IEnumerable<DiscSet> FilteredDiscSets =>
+        string.IsNullOrWhiteSpace(searchQuery)
+            ? AllSelectableSets
+            : AllSelectableSets.Where(s => Disc.FormatSetName(s).Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+    protected override void OnParametersSet()
+    {
+        if (IsOpen && !wasOpen)
+        {
+            searchQuery = string.Empty;
+        }
+        wasOpen = IsOpen;
+    }
+
+    private async Task SelectSet(DiscSet set)
+    {
+        await OnSelectSet.InvokeAsync(set);
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}
