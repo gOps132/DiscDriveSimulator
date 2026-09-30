@@ -94,25 +94,33 @@
 }
 
 /* Shared Close Button */
-.zzz-close-btn {
+.zzz-close-btn,
+.obtain-close-btn {
     background: none;
     border: none;
+    outline: none;
     cursor: pointer;
     padding: 0;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.15s ease;
+    transition: transform 0.15s ease, filter 0.15s ease;
+    box-shadow: none;
+    flex-shrink: 0;
 }
 
-.zzz-close-btn:hover {
+.zzz-close-btn:hover,
+.obtain-close-btn:hover {
     transform: scale(1.1);
+    filter: brightness(1.2);
 }
 
-.zzz-close-btn img {
+.zzz-close-btn img,
+.obtain-close-btn img {
     width: 2.25rem;
     height: 2.25rem;
     object-fit: contain;
+    display: block;
 }
 
 /* ==========================================================================
