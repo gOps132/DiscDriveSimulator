@@ -291,8 +291,10 @@
                     </div>
                 </div>
             </section>
+        </div>
 
-            <!-- Center-Left Floating Partition Info Card -->
+        <div class="bardic-needle-container ">
+            <!-- Center Floating Partition Info Card -->
             <aside class="partition-info-card">
                 <div class="info-title">Partition @selectedPartition (Selected)</div>
                 <div class="info-subtitle">Possible Main Stats:</div>
@@ -303,63 +305,65 @@
                     }
                 </ul>
             </aside>
+
+            <!-- Right Main Console -->
+            <main class="tuning-console-panel">
+                <div class="console-prompt-banner">
+                    Press the number to select a Drive Disc partition
+                </div>
+
+                <!-- Circular Apparatus with 6 Interactive Sockets -->
+                <div class="apparatus-wrapper">
+                    <img src="assets/Equipment_Menu_Screen.webp" alt="Tuning Apparatus" class="apparatus-bg" />
+
+                    @for (int i = 1; i <= 6; i++)
+                    {
+                        var partitionNumber = i;
+                        <button type="button"
+                                class="socket-node socket-@partitionNumber @(selectedPartition == partitionNumber ? "selected" : "")"
+                                title="Partition @partitionNumber"
+                                @onclick="() => SelectPartition(partitionNumber)">
+                            <span class="socket-label">@partitionNumber</span>
+                        </button>
+                    }
+                </div>
+
+                <div class="console-notice-text">
+                    Guaranteed S-Rank Drive Disc for the selected partition
+                </div>
+
+                <!-- Action Buttons: Tune x01 & Tune x10 -->
+                <div class="tune-buttons-row">
+                    <button type="button" class="btn-tune"
+                            disabled="@(Sim.State.HiFiMasterCopies < 6)"
+                            @onclick="() => TunePartition(1)">
+                        <div class="tune-cost-group">
+                            <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
+                            <span>6</span>
+                        </div>
+                        <div class="tune-label-group">
+                            <span class="tune-sub-text">Tune Partition @selectedPartition</span>
+                            <span class="tune-multiplier">x01</span>
+                        </div>
+                    </button>
+
+                    <button type="button" class="btn-tune"
+                            disabled="@(Sim.State.HiFiMasterCopies < 60)"
+                            @onclick="() => TunePartition(10)">
+                        <div class="tune-cost-group">
+                            <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
+                            <span>60</span>
+                        </div>
+                        <div class="tune-label-group">
+                            <span class="tune-sub-text">Tune Partition @selectedPartition</span>
+                            <span class="tune-multiplier">x10</span>
+                        </div>
+                    </button>
+                </div>
+            </main>
         </div>
 
-        <!-- Right Main Console -->
-        <main class="tuning-console-panel">
-            <div class="console-prompt-banner">
-                Press the number to select a Drive Disc partition
-            </div>
-
-            <!-- Circular Apparatus with 6 Interactive Sockets -->
-            <div class="apparatus-wrapper">
-                <img src="assets/Equipment_Menu_Screen.webp" alt="Tuning Apparatus" class="apparatus-bg" />
-
-                @for (int i = 1; i <= 6; i++)
-                {
-                    var partitionNumber = i;
-                    <button type="button"
-                            class="socket-node socket-@partitionNumber @(selectedPartition == partitionNumber ? "selected" : "")"
-                            title="Partition @partitionNumber"
-                            @onclick="() => SelectPartition(partitionNumber)">
-                        <span class="socket-label">@partitionNumber</span>
-                    </button>
-                }
-            </div>
-
-            <div class="console-notice-text">
-                Guaranteed S-Rank Drive Disc for the selected partition
-            </div>
-
-            <!-- Action Buttons: Tune x01 & Tune x10 -->
-            <div class="tune-buttons-row">
-                <button type="button" class="btn-tune"
-                        disabled="@(Sim.State.HiFiMasterCopies < 6)"
-                        @onclick="() => TunePartition(1)">
-                    <div class="tune-cost-group">
-                        <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
-                        <span>6</span>
-                    </div>
-                    <div class="tune-label-group">
-                        <span class="tune-sub-text">Tune Partition @selectedPartition</span>
-                        <span class="tune-multiplier">x01</span>
-                    </div>
-                </button>
-
-                <button type="button" class="btn-tune"
-                        disabled="@(Sim.State.HiFiMasterCopies < 60)"
-                        @onclick="() => TunePartition(10)">
-                    <div class="tune-cost-group">
-                        <img src="assets/Item_Hi-Fi_Master_Copy.webp" alt="Cost" class="tune-cost-icon" />
-                        <span>60</span>
-                    </div>
-                    <div class="tune-label-group">
-                        <span class="tune-sub-text">Tune Partition @selectedPartition</span>
-                        <span class="tune-multiplier">x10</span>
-                    </div>
-                </button>
-            </div>
-        </main>
+        
     </div>
 
     <!-- Screen Footer -->

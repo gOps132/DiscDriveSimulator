@@ -127,7 +127,7 @@
 .tuning-main-content {
     display: flex;
     align-items: flex-start;
-    justify-content: center;
+    justify-content: space-around;
     gap: 2rem;
     flex: 1;
     position: relative;
@@ -137,7 +137,7 @@
 
 /* Left Station Column (Routine Cleanup & Partition Info) */
 .left-station-column {
-    width: 380px;
+    width: 50rem;
     max-width: 100%;
     display: flex;
     flex-direction: column;
@@ -752,9 +752,17 @@
     color: #d1d5db;
 }
 
+.bardic-needle-container {
+    width: 480px;
+    max-width: 100%;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+}
+
 /* Partition Info Card */
 .partition-info-card {
-    width: 100%;
     background: rgba(14, 15, 18, 0.92);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -781,9 +789,11 @@
 
 .stats-pool-list {
     list-style: none;
+    padding: 0;
+    margin: 0;
     display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.65rem;
 }
 
 .stats-pool-list li {
@@ -796,7 +806,6 @@
 
 /* Right Main Console (Tuning Station) */
 .tuning-console-panel {
-    width: 480px;
     max-width: 100%;
     background: rgba(17, 18, 22, 0.94);
     border: 2px solid #23252d;
@@ -922,7 +931,6 @@
     font-size: 0.85rem;
     font-weight: 700;
     color: #9ca3af;
-    text-align: center;
     margin: 0.5rem 0 0.75rem 0;
 }
 
