@@ -40,3 +40,10 @@ Simulate ZZZ drive disc drops and bardic needle for ZZZ.
 dotnet run
 ```
 Navigate to `http://localhost:5063` in your browser.
+
+---
+
+## Credits
+
+Inspired by Artifact Simulation Engine: https://artifact-speculation-engine.vercel.app/
+Assets: https://zenless-zone-zero.fandom.com/wiki/Zenless_Zone_Zero_Wiki
