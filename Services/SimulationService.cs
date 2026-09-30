@@ -72,7 +72,8 @@ public class SimulationService : ISimulationService
 
     private void ProcessNewDisc(Disc disc, SimulationRunResult? result = null)
     {
-        int rv = disc.GetRollValue(State.PrioritizedSubstats);
+        var priorities = State.GetPrioritizedSubstatsForPartition(disc.Partition);
+        int rv = disc.GetRollValue(priorities);
         bool isKept = true;
         string dismantleReason = string.Empty;
 
@@ -155,35 +156,35 @@ public class SimulationService : ISimulationService
         return DismantleDiscs(nonMatching);
     }
 
-    public Disc? CraftSingle(int? partition = null)
+    public Disc? CraftSingle(int? partition = null, DiscSet? set = null)
     {
         if (State.HiFiMasterCopies < SimulationConfig.MasterCopiesPerCraft) return null;
 
         State.HiFiMasterCopies -= SimulationConfig.MasterCopiesPerCraft;
         State.TotalDiscsCrafted++;
 
-        var disc = _generator.GenerateDisc(partition, null, isCrafted: true);
+        var disc = _generator.GenerateDisc(partition, set, isCrafted: true);
         State.Inventory.Add(disc);
 
         NotifyStateChanged();
         return disc;
     }
 
-    public int CraftMultiple(int? partition, int count)
+    public int CraftMultiple(int? partition, int count, DiscSet? set = null)
     {
         int crafted = 0;
         for (int i = 0; i < count; i++)
         {
-            if (CraftSingle(partition) == null) break;
+            if (CraftSingle(partition, set) == null) break;
             crafted++;
         }
         return crafted;
     }
 
-    public int CraftMax(int? partition)
+    public int CraftMax(int? partition, DiscSet? set = null)
     {
         int maxPossible = State.HiFiMasterCopies / SimulationConfig.MasterCopiesPerCraft;
-        return CraftMultiple(partition, maxPossible);
+        return CraftMultiple(partition, maxPossible, set);
     }
 
     public bool MatchesFilter(Disc disc)

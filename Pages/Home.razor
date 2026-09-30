@@ -177,19 +177,26 @@
 
                     <!-- Ranked Priorities List -->
                     <div class="priority-row">
+                        @{
+                            var activePriorities = Sim.State.GetActivePrioritizedSubstats();
+                            var validPool = SimulationConfig.GetValidSubstatPool(Sim.State.TargetCleanupPartition);
+                            var availableStats = validPool.Where(s => !activePriorities.Contains(s)).ToList();
+                        }
                         <div class="priority-header-flex">
-                            <span class="priority-label">Ranked Priorities:</span>
-                            @if (Sim.State.PrioritizedSubstats.Count > 0)
+                            <span class="priority-label">
+                                Ranked Priorities @(Sim.State.TargetCleanupPartition.HasValue ? $"(Slot {Sim.State.TargetCleanupPartition.Value})" : "(All Slots)"):
+                            </span>
+                            @if (activePriorities.Count > 0)
                             {
                                 <button type="button" class="btn-clear-priorities" @onclick="ClearPrioritizedSubstats">Clear</button>
                             }
                         </div>
 
                         <div class="ranked-substats-list">
-                            @for (int i = 0; i < Sim.State.PrioritizedSubstats.Count; i++)
+                            @for (int i = 0; i < activePriorities.Count; i++)
                             {
                                 var idx = i;
-                                var stat = Sim.State.PrioritizedSubstats[i];
+                                var stat = activePriorities[i];
                                 <div class="ranked-chip">
                                     <span class="rank-badge">#@(idx + 1)</span>
                                     <span class="rank-stat-name">@Disc.FormatStatName(stat)</span>
@@ -199,9 +206,6 @@
                         </div>
 
                         <!-- Available Substats to Add -->
-                        @{
-                            var availableStats = SimulationConfig.SubstatPool.Where(s => !Sim.State.PrioritizedSubstats.Contains(s)).ToList();
-                        }
                         @if (availableStats.Count > 0)
                         {
                             <div class="available-stats-pool">
@@ -475,12 +479,15 @@
                                 </div>
                             </div>
 
+                            @{
+                                var discPriorities = Sim.State.GetPrioritizedSubstatsForPartition(inspectedModalDisc.Partition);
+                            }
                             <div class="detail-substats-box">
                                 <div class="detail-substats-header">Substats (@inspectedModalDisc.Substats.Count)</div>
                                 <ul class="detail-substats-list">
                                     @foreach (var sub in inspectedModalDisc.Substats)
                                     {
-                                        var priorityIdx = Sim.State.PrioritizedSubstats.IndexOf(sub.Stat);
+                                        var priorityIdx = discPriorities.IndexOf(sub.Stat);
                                         var isPrioritized = priorityIdx >= 0;
                                         <li class="detail-substat-item @(isPrioritized ? "is-prioritized" : "")">
                                             <div class="substat-name-col">
@@ -498,7 +505,7 @@
 
                             <div class="detail-scores-row">
                                 <span class="score-tag cv">CV: @inspectedModalDisc.GetCritValue()</span>
-                                <span class="score-tag rv">RV: @inspectedModalDisc.GetRollValue(Sim.State.PrioritizedSubstats)/4</span>
+                                <span class="score-tag rv">RV: @inspectedModalDisc.GetRollValue(discPriorities)/4</span>
                             </div>
                         </div>
 
@@ -857,30 +864,34 @@
     private async Task SetCleanupTargetPartition(int? partition)
     {
         Sim.State.TargetCleanupPartition = partition;
+        Sim.State.SanitizePriorities();
         await SaveState();
     }
 
     private async Task AddPrioritizedSubstat(StatType stat)
     {
-        if (!Sim.State.PrioritizedSubstats.Contains(stat))
+        var active = Sim.State.GetActivePrioritizedSubstats();
+        if (!active.Contains(stat))
         {
-            Sim.State.PrioritizedSubstats.Add(stat);
+            active.Add(stat);
             await SaveState();
         }
     }
 
     private async Task RemovePrioritizedSubstat(int index)
     {
-        if (index >= 0 && index < Sim.State.PrioritizedSubstats.Count)
+        var active = Sim.State.GetActivePrioritizedSubstats();
+        if (index >= 0 && index < active.Count)
         {
-            Sim.State.PrioritizedSubstats.RemoveAt(index);
+            active.RemoveAt(index);
             await SaveState();
         }
     }
 
     private async Task ClearPrioritizedSubstats()
     {
-        Sim.State.PrioritizedSubstats.Clear();
+        var active = Sim.State.GetActivePrioritizedSubstats();
+        active.Clear();
         await SaveState();
     }
 

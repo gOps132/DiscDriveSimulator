@@ -77,6 +77,18 @@ public static class SimulationConfig
         StatType.PEN
     };
 
+    // Substats available for a given partition (excluding fixed main stats on slots 1-3)
+    public static IEnumerable<StatType> GetValidSubstatPool(int? partition)
+    {
+        return partition switch
+        {
+            1 => SubstatPool.Where(st => st != StatType.HP),
+            2 => SubstatPool.Where(st => st != StatType.ATK),
+            3 => SubstatPool.Where(st => st != StatType.DEF),
+            _ => SubstatPool
+        };
+    }
+
     // Slot 4 Main stat pool
     public static readonly StatType[] Slot4MainStats = new[]
     {

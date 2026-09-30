@@ -28,12 +28,69 @@ public class SimulationState
     public string SelectedCleanupStageId { get; set; } = "stage_1";
     public bool WithDailyCoffee { get; set; } = false;
     public int? TargetCleanupPartition { get; set; } = null; // null = All Partitions
-    public List<StatType> PrioritizedSubstats { get; set; } = new()
+
+    // Key 0 = "All", Keys 1..6 = Partitions 1..6
+    public Dictionary<int, List<StatType>> PartitionPrioritizedSubstats { get; set; } = new()
     {
-        StatType.CritRate,
-        StatType.CritDmg,
-        StatType.ATKPercent
+        [0] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+        [1] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+        [2] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+        [3] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+        [4] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+        [5] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+        [6] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent }
     };
+
+    public List<StatType> PrioritizedSubstats
+    {
+        get => GetActivePrioritizedSubstats();
+        set
+        {
+            if (value != null)
+            {
+                int key = TargetCleanupPartition ?? 0;
+                PartitionPrioritizedSubstats[key] = value;
+            }
+        }
+    }
+
+    public List<StatType> GetActivePrioritizedSubstats()
+    {
+        int key = TargetCleanupPartition ?? 0;
+        if (!PartitionPrioritizedSubstats.TryGetValue(key, out var list) || list == null)
+        {
+            list = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent };
+            PartitionPrioritizedSubstats[key] = list;
+        }
+        SanitizePriorities();
+        return list;
+    }
+
+    public List<StatType> GetPrioritizedSubstatsForPartition(int? partition)
+    {
+        SanitizePriorities();
+        int key = partition ?? 0;
+        if (PartitionPrioritizedSubstats.TryGetValue(key, out var list) && list != null && list.Count > 0)
+        {
+            return list;
+        }
+        if (PartitionPrioritizedSubstats.TryGetValue(0, out var fallback) && fallback != null && fallback.Count > 0)
+        {
+            return fallback;
+        }
+        return new List<StatType>();
+    }
+
+    public void SanitizePriorities()
+    {
+        if (PartitionPrioritizedSubstats.TryGetValue(1, out var p1))
+            p1?.RemoveAll(s => s == StatType.HP);
+        if (PartitionPrioritizedSubstats.TryGetValue(2, out var p2))
+            p2?.RemoveAll(s => s == StatType.ATK);
+        if (PartitionPrioritizedSubstats.TryGetValue(3, out var p3))
+            p3?.RemoveAll(s => s == StatType.DEF);
+    }
+
     public int MinCleanupRv { get; set; } = 2;
 
     // Automation Settings
@@ -43,6 +100,7 @@ public class SimulationState
 
     // Crafting target in Bardic Needle
     public int? SelectedCraftPartition { get; set; } = null;
+    public DiscSet SelectedCraftSet { get; set; } = DiscSet.SwingJazz;
 
     // Desired Substats for RV
     public HashSet<StatType> DesiredStats { get; set; } = new()
@@ -71,11 +129,15 @@ public class SimulationState
         HiFiMasterCopies = 0;
         Inventory.Clear();
         TargetCleanupPartition = null;
-        PrioritizedSubstats = new()
+        PartitionPrioritizedSubstats = new()
         {
-            StatType.CritRate,
-            StatType.CritDmg,
-            StatType.ATKPercent
+            [0] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+            [1] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+            [2] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+            [3] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+            [4] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+            [5] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent },
+            [6] = new() { StatType.CritRate, StatType.CritDmg, StatType.ATKPercent }
         };
         MinCleanupRv = 2;
         FilterPartition = null;
