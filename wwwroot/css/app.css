@@ -12,3 +12,30 @@
 
 /* Dedicated Storage & Inventory Management Modal */
 @import url('storage-modal.css');
+
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: #ffcc00;
+    color: #111;
+    padding: 0.6rem 1.25rem;
+    z-index: 2000;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.5);
+    font-weight: 700;
+}
+
+#blazor-error-ui .reload {
+    color: #000;
+    margin-left: 0.5rem;
+    text-decoration: underline;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 1rem;
+    top: 0.6rem;
+}
