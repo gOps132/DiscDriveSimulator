@@ -35,5 +35,17 @@ public enum StatType
 public enum DiscSet
 {
     SetAlpha,
-    SetBeta
+    SetBeta,
+    WoodpeckerElectro,
+    PolarMetal,
+    ShockstarDisco,
+    ThunderMetal,
+    FangedMetal,
+    FreedomBlues,
+    PufferElectro,
+    ChaosJazz,
+    HormonePunk,
+    SoulRock,
+    SwingJazz,
+    BranchBladeSong
 }

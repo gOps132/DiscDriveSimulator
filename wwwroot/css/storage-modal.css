@@ -516,3 +516,51 @@
     color: #6b7280;
     font-size: 0.85rem;
 }
+
+/* ==========================================================================
+   STORAGE MODAL RESPONSIVE STYLES
+   ========================================================================== */
+@media (max-width: 900px) {
+    .storage-modal-window {
+        padding: 1rem;
+        max-height: 94vh;
+        overflow-y: auto;
+    }
+
+    .storage-body {
+        flex-direction: column;
+        overflow-y: visible;
+        gap: 1rem;
+    }
+
+    .storage-inspector-panel {
+        width: 100%;
+        max-height: none;
+    }
+
+    .storage-disc-grid {
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    }
+}
+
+@media (max-width: 640px) {
+    .storage-filters-row {
+        gap: 0.5rem;
+    }
+
+    .storage-actions-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .batch-dismantle-btns {
+        width: 100%;
+        flex-direction: column;
+    }
+
+    .btn-storage-dismantle {
+        width: 100%;
+        text-align: center;
+    }
+}

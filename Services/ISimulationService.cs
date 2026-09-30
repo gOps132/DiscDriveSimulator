@@ -8,7 +8,7 @@ public interface ISimulationService
     event Action? OnChange;
 
     void SetState(SimulationState state);
-    void RunSimulation(int batteryCharge);
+    SimulationRunResult RunSimulation(int batteryCharge);
     bool DismantleDisc(Disc disc);
     int DismantleDiscs(IEnumerable<Disc> discs);
     int DismantleNonMatching();

@@ -28,6 +28,7 @@
 .obtain-modal-window {
     width: 960px;
     max-width: 95vw;
+    max-height: 90vh;
     background: #0d0e11;
     border: 2px solid #23252d;
     border-radius: 20px;
@@ -36,6 +37,7 @@
     flex-direction: column;
     gap: 1rem;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
+    overflow: hidden;
 }
 
 .obtain-header {
@@ -79,6 +81,7 @@
     gap: 1.25rem;
     align-items: stretch;
     min-height: 420px;
+    overflow: hidden;
 }
 
 /* Left Grid of Discs (5 columns strict) */
@@ -86,10 +89,11 @@
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.6rem;
-    max-height: 460px;
+    max-height: 520px;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 0.35rem;
+    align-content: start;
 }
 
 /* S-Rank Disc Card */
@@ -183,7 +187,16 @@
     font-weight: 900;
     color: #ffffff;
     text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+.detail-set-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ffc107;
+    text-align: center;
     margin-bottom: 1rem;
+    letter-spacing: 0.02em;
 }
 
 .detail-stats-section {
@@ -313,4 +326,41 @@
 
 .btn-detail.danger:hover:not(:disabled) {
     background: rgba(220, 38, 38, 0.3);
+}
+
+/* ==========================================================================
+   OBTAIN MODAL RESPONSIVE STYLES
+   ========================================================================== */
+@media (max-width: 768px) {
+    .obtain-modal-window {
+        padding: 1rem;
+        max-height: 92vh;
+        overflow-y: auto;
+    }
+
+    .obtain-body {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        gap: 1rem;
+    }
+
+    .obtain-disc-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        max-height: 240px;
+    }
+
+    .obtain-detail-panel {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .obtain-disc-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        max-height: 200px;
+    }
+
+    .obtain-title {
+        font-size: 1.3rem;
+    }
 }

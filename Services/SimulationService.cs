@@ -20,54 +20,68 @@ public class SimulationService : ISimulationService
         NotifyStateChanged();
     }
 
-    public void RunSimulation(int batteryCharge)
+    public SimulationRunResult RunSimulation(int batteryCharge)
     {
-        if (batteryCharge < SimulationConfig.BatteryPerRun) return;
+        int requestedRuns = batteryCharge / SimulationConfig.BatteryPerRun;
+        int batteryNeeded = requestedRuns * SimulationConfig.BatteryPerRun;
 
-        int runs = batteryCharge / SimulationConfig.BatteryPerRun;
-        int batteryUsed = runs * SimulationConfig.BatteryPerRun;
+        if (requestedRuns <= 0) return new SimulationRunResult();
 
-        State.TotalRuns += runs;
-        State.TotalBatterySpent += batteryUsed;
-
-        for (int r = 0; r < runs; r++)
+        // Auto-convert Ether Batteries if battery charge is insufficient
+        if (State.BatteryCharge < batteryNeeded && State.EtherBatteries > 0)
         {
-            var drops = _generator.GenerateRunDrops();
+            int deficit = batteryNeeded - State.BatteryCharge;
+            int etherNeeded = (int)Math.Ceiling(deficit / (double)SimulationConfig.BatteryPerRun);
+            int etherToUse = Math.Min(etherNeeded, State.EtherBatteries);
+            State.EtherBatteries -= etherToUse;
+            State.BatteryCharge += etherToUse * SimulationConfig.BatteryPerRun;
+        }
+
+        int affordableRuns = Math.Min(requestedRuns, State.BatteryCharge / SimulationConfig.BatteryPerRun);
+        if (affordableRuns <= 0) return new SimulationRunResult();
+
+        int batteryUsed = affordableRuns * SimulationConfig.BatteryPerRun;
+        var result = new SimulationRunResult
+        {
+            Runs = affordableRuns,
+            BatterySpent = batteryUsed
+        };
+
+        State.TotalRuns += affordableRuns;
+        State.TotalBatterySpent += batteryUsed;
+        State.BatteryCharge -= batteryUsed;
+
+        var stage = RoutineCleanupStage.AllStages.FirstOrDefault(s => s.Id == State.SelectedCleanupStageId)
+                    ?? RoutineCleanupStage.AllStages[0];
+
+        for (int r = 0; r < affordableRuns; r++)
+        {
+            var drops = _generator.GenerateRunDrops(stage.Set1, stage.Set2);
             State.TotalDiscsDropped += drops.Count;
 
             foreach (var disc in drops)
             {
-                ProcessNewDisc(disc);
-            }
-        }
-
-        // Auto-craft loop if enabled
-        if (State.AutoCraftOnSim)
-        {
-            // Keep crafting while enough copies exist
-            while (State.HiFiMasterCopies >= SimulationConfig.MasterCopiesPerCraft)
-            {
-                State.HiFiMasterCopies -= SimulationConfig.MasterCopiesPerCraft;
-                State.TotalDiscsCrafted++;
-
-                var crafted = _generator.GenerateDisc(State.AutoCraftPartition, null, isCrafted: true);
-                ProcessNewDisc(crafted);
+                result.GeneratedDiscs.Add(disc);
+                ProcessNewDisc(disc, result);
             }
         }
 
         NotifyStateChanged();
+        return result;
     }
 
-    private void ProcessNewDisc(Disc disc)
+    private void ProcessNewDisc(Disc disc, SimulationRunResult? result = null)
     {
         if (State.AutoDismantleOnSim && !MatchesFilter(disc))
         {
             State.HiFiMasterCopies++;
             State.TotalDiscsDismantled++;
+            if (result != null) result.DismantledCount++;
         }
         else
         {
             State.Inventory.Add(disc);
+            if (result != null) result.KeptDiscs.Add(disc);
         }
     }
 

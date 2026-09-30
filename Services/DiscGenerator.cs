@@ -49,13 +49,18 @@ public class DiscGenerator : IDiscGenerator
         };
     }
 
-    public List<Disc> GenerateRunDrops()
+    public List<Disc> GenerateRunDrops(DiscSet? set1 = null, DiscSet? set2 = null)
     {
         int dropCount = _random.Next(SimulationConfig.MinDropsPerRun, SimulationConfig.MaxDropsPerRun + 1);
         var drops = new List<Disc>(dropCount);
         for (int i = 0; i < dropCount; i++)
         {
-            drops.Add(GenerateDisc());
+            DiscSet? pickedSet = null;
+            if (set1.HasValue && set2.HasValue)
+            {
+                pickedSet = _random.Next(2) == 0 ? set1.Value : set2.Value;
+            }
+            drops.Add(GenerateDisc(set: pickedSet));
         }
         return drops;
     }

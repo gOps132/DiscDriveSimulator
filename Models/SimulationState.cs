@@ -24,6 +24,10 @@ public class SimulationState
     public int HiFiMasterCopies { get; set; } = 60;
     public List<Disc> Inventory { get; set; } = new();
 
+    // Routine Cleanup Settings
+    public string SelectedCleanupStageId { get; set; } = "predator_prey";
+    public bool WithDailyCoffee { get; set; } = false;
+
     // Automation Settings
     public bool AutoDismantleOnSim { get; set; } = false;
     public bool AutoCraftOnSim { get; set; } = false;
@@ -58,5 +62,23 @@ public class SimulationState
         TotalDiscsCrafted = 0;
         HiFiMasterCopies = 0;
         Inventory.Clear();
+        FilterPartition = null;
+        FilterSet = null;
+        FilterMainStat = null;
+        FilterLock = null;
+        CurrentSort = SortOrder.HighestCv;
     }
 }
+
+public class SimulationRunResult
+{
+    public int Runs { get; set; }
+    public int BatterySpent { get; set; }
+    public List<Disc> GeneratedDiscs { get; set; } = new();
+    public List<Disc> KeptDiscs { get; set; } = new();
+    public int DismantledCount { get; set; }
+    public int AutoCraftedCount { get; set; }
+
+    public double AverageCv => KeptDiscs.Count > 0 ? Math.Round(KeptDiscs.Average(d => d.GetCritValue()), 1) : 0;
+}
+

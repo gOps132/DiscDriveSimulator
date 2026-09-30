@@ -127,4 +127,26 @@ public class Disc
     {
         return IsPercentStat(stat) ? $"{val:0.0}%" : $"{Math.Round(val)}";
     }
+
+    public static string FormatSetName(DiscSet set)
+    {
+        return set switch
+        {
+            DiscSet.WoodpeckerElectro => "Woodpecker Electro",
+            DiscSet.PolarMetal => "Polar Metal",
+            DiscSet.ShockstarDisco => "Shockstar Disco",
+            DiscSet.ThunderMetal => "Thunder Metal",
+            DiscSet.FangedMetal => "Fanged Metal",
+            DiscSet.FreedomBlues => "Freedom Blues",
+            DiscSet.PufferElectro => "Puffer Electro",
+            DiscSet.ChaosJazz => "Chaos Jazz",
+            DiscSet.HormonePunk => "Hormone Punk",
+            DiscSet.SoulRock => "Soul Rock",
+            DiscSet.SwingJazz => "Swing Jazz",
+            DiscSet.BranchBladeSong => "Branch & Blade Song",
+            DiscSet.SetAlpha => "Set Alpha",
+            DiscSet.SetBeta => "Set Beta",
+            _ => set.ToString()
+        };
+    }
 }
