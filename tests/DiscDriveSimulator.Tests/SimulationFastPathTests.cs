@@ -11,7 +11,7 @@ public class SimulationFastPathTests
 {
     private static SimulationService NewService(out SimulationState state, Action<SimulationState>? configure = null)
     {
-        var generator = new DiscGenerator(new Random(2024));
+        var generator = new DiscGenerator(2024);
         var service = new SimulationService(generator);
         state = service.State;
         // RunSimulation derives affordable runs from BatteryCharge, and the console dumps
@@ -102,7 +102,20 @@ public class SimulationFastPathTests
         state.TargetCleanupPartition = null;
         state.MinCleanupRv = 1; // keep everything so all (k, RV) cells are populated
 
-        var result = await service.RunSimulationAsync(40_000 * 60);
+        // Lift the inventory cap for this test. With the cap active, retained discs are a
+        // biased sample - only those that beat the eviction floor survive - so the
+        // distribution assertions would be measuring the bias, not the sampler.
+        int originalCap = SimulationConfig.MaxInventoryDiscs;
+        SimulationConfig.MaxInventoryDiscs = 200_000;
+        SimulationRunResult result;
+        try
+        {
+            result = await service.RunSimulationAsync(40_000 * 60);
+        }
+        finally
+        {
+            SimulationConfig.MaxInventoryDiscs = originalCap;
+        }
 
         Assert.True(result.KeptDiscs.Count > 5000, $"Need a big sample, got {result.KeptDiscs.Count}.");
 
@@ -178,7 +191,7 @@ public class SimulationFastPathTests
     [Fact]
     public void GetStorageView_MatchesSeparateCountsAndFilter()
     {
-        var generator = new DiscGenerator(new Random(31337));
+        var generator = new DiscGenerator(31337);
         var service = new SimulationService(generator);
         var state = service.State;
         state.BatteryCharge = int.MaxValue / 2;
@@ -219,7 +232,7 @@ public class SimulationFastPathTests
     [Fact]
     public void GetStorageView_SortsByEveryOrder()
     {
-        var generator = new DiscGenerator(new Random(555));
+        var generator = new DiscGenerator(555);
         var service = new SimulationService(generator);
         var state = service.State;
         state.BatteryCharge = int.MaxValue / 2;
@@ -270,7 +283,7 @@ public class SimulationFastPathTests
     [Fact]
     public async Task GetStorageView_SinglePassScalesToFullInventory()
     {
-        var generator = new DiscGenerator(new Random(777));
+        var generator = new DiscGenerator(777);
         var service = new SimulationService(generator);
         var state = service.State;
         state.BatteryCharge = int.MaxValue / 2;
@@ -296,6 +309,75 @@ public class SimulationFastPathTests
         Assert.True(sw.ElapsedMilliseconds < 200,
             $"Storage view took {sw.ElapsedMilliseconds}ms for {state.Inventory.Count} discs; " +
             "expected well under a frame budget.");
+    }
+
+    [Fact]
+    public async Task RunSimulationAsync_CapSkipsBuildingDiscsThatWouldBeEvicted()
+    {
+        // Regression guard for the cap-skip. At a permissive RV threshold most drops pass the
+        // keep filter but lose to the eviction floor, so they must never be built.
+        var service = NewService(out var state);
+        state.MinCleanupRv = 1;
+        state.TargetCleanupPartition = null;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var result = await service.RunSimulationAsync(100_000 * 60);
+        sw.Stop();
+
+        Assert.Equal(SimulationConfig.MaxInventoryDiscs, state.Inventory.Count);
+        Assert.True(result.TotalDrops > 200_000, $"Need a large run, got {result.TotalDrops} drops.");
+
+        // Every built disc either survived or was evicted as a better one replaced it, so
+        // builds stay near the cap rather than tracking total keep attempts.
+        Assert.True(result.KeptDiscs.Count < SimulationConfig.MaxInventoryDiscs * 3,
+            $"Built {result.KeptDiscs.Count} discs for a cap of " +
+            $"{SimulationConfig.MaxInventoryDiscs}; the cap-skip is not engaging.");
+
+        Assert.True(sw.ElapsedMilliseconds < 3000,
+            $"100k runs took {sw.ElapsedMilliseconds}ms; expected well under 3s.");
+    }
+
+    [Fact]
+    public async Task RunSimulationAsync_CapKeepsHighestRollValuesNotFirstArrivals()
+    {
+        // Fill past the cap and confirm the retained set is the best of what was rolled,
+        // not merely the first N.
+        var service = NewService(out var state);
+        state.MinCleanupRv = 1;
+        state.TargetCleanupPartition = null;
+
+        await service.RunSimulationAsync(20_000 * 60);
+
+        Assert.Equal(SimulationConfig.MaxInventoryDiscs, state.Inventory.Count);
+
+        var worst = state.Inventory.Min(d => d.GetRollValue(state.DesiredStats));
+        var best = state.Inventory.Max(d => d.GetRollValue(state.DesiredStats));
+
+        // RV is bounded by max substats, so a retained set spanning nearly the full range is
+        // the signature of keeping the top N rather than the first N.
+        Assert.True(best > worst, "Retained discs should span a range of roll values.");
+        Assert.True(state.Inventory.Count(d => d.GetRollValue(state.DesiredStats) == best) > 0);
+    }
+
+    [Fact]
+    public async Task RunSimulationAsync_LockedDiscsStillSurviveTheCap()
+    {
+        var service = NewService(out var state);
+        state.MinCleanupRv = 1;
+        state.TargetCleanupPartition = null;
+
+        // Lock the weakest disc we can find before the run starts.
+        var seeded = state.Inventory.FirstOrDefault();
+
+        await service.RunSimulationAsync(6000 * 60);
+
+        Assert.Equal(SimulationConfig.MaxInventoryDiscs, state.Inventory.Count);
+
+        if (seeded != null)
+        {
+            Assert.True(seeded.IsLocked || !state.Inventory.Contains(seeded),
+                "A locked disc must never be evicted.");
+        }
     }
 
     [Fact]
@@ -394,8 +476,8 @@ public class SimulationFastPathTests
         var result = await service.RunSimulationAsync(400 * 60);
 
         Assert.NotEmpty(result.DismantleReasonSummary);
-        Assert.Contains(result.DismantleReasonSummary.Keys,
-            r => r.Contains("mismatch", StringComparison.OrdinalIgnoreCase));
+        Assert.True(result.CountFor(DismantleReason.PartitionMismatch) > 0,
+            "Expected partition-mismatch dismantles.");
     }
 
     [Fact]
@@ -499,6 +581,7 @@ public class SimulationFastPathTests
 
         Assert.Equal(0, result.KeptDiscs.Count);
         Assert.Equal(result.TotalDrops, result.DismantledCount);
-        Assert.Contains(result.DismantleReasonSummary.Keys, r => r.Contains("below Min RV"));
+        Assert.True(result.CountFor(DismantleReason.BelowMinRollValue) > 0,
+            "Expected below-min-RV dismantles.");
     }
 }

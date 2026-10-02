@@ -159,7 +159,7 @@ public class HypergeometricSamplerTests
     public void Sample_EmpiricalFrequenciesMatchThePmf()
     {
         const int trials = 400_000;
-        var rng = new Random(12345);
+        var rng = new Xoshiro128(12345);
         var pmf = HypergeometricSampler.BuildTable(10, 3, 4);
         var cdf = HypergeometricSampler.ToCumulative(pmf);
         var counts = new int[pmf.Length];
@@ -220,8 +220,7 @@ public class HypergeometricSamplerTests
     {
         // The integration guarantee: sampling RV directly must match the RV that
         // the real generator actually produces, distributionally.
-        var rng = new Random(999);
-        var generator = new DiscGenerator(rng);
+        var generator = new DiscGenerator(999);
 
         // Partition 1 has a fixed HP main stat, which is not in the prioritized set,
         // so the pool is SubstatPool minus HP => n=9, d=3.
@@ -250,8 +249,7 @@ public class HypergeometricSamplerTests
     {
         // The full integration guarantee across all six slots, including 4-6 where the
         // main stat is itself drawn and may be prioritized (lowering d for that case).
-        var rng = new Random(4242);
-        var generator = new DiscGenerator(rng);
+        var generator = new DiscGenerator(4242);
 
         foreach (int partition in new[] { 1, 2, 3, 4, 5, 6 })
         {

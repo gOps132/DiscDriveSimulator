@@ -66,11 +66,7 @@ public class SimulationState
         return list;
     }
 
-    /// <summary>
-    /// The default prioritized substat set, applied to every partition until the user
-    /// configures a specific one. Shared as a static so the simulation fast path can
-    /// build RV distribution tables without instantiating state.
-    /// </summary>
+    /// <summary>Default prioritized substats, shared so the fast path can build tables without state.</summary>
     public static HashSet<StatType> PrioritizedFor(int partition)
     {
         return new HashSet<StatType>
@@ -111,10 +107,12 @@ public class SimulationState
     // Automation Settings
     /// <summary>
     /// Whether the simulation auto-dismantles drops that miss the current RV threshold.
-    /// Always <c>true</c> in normal play: it is what keeps long runs from exhausting memory,
-    /// and the simulation fast path is only enabled when it is on. Retained as a serialized
-    /// property so existing saves deserialize, but nothing sets it to false anymore.
     /// </summary>
+    /// <remarks>
+    /// Always <c>true</c> in normal play: the fast path only pays when it is on, and without
+    /// it long runs exhaust the heap. Kept as a serialized property so existing saves
+    /// deserialize; nothing sets it to false.
+    /// </remarks>
     public bool AutoDismantleOnSim
     {
         get => true;
@@ -198,17 +196,64 @@ public class SimulationRunResult
     public int BatterySpent { get; set; }
     /// <summary>Total discs rolled (kept + dismantled). Use for DROPS display.</summary>
     public int TotalDrops { get; set; }
-    /// <summary>Kept discs only — this is what the UI renders. Dismantled discs are NOT materialized here to avoid WASM memory/DOM blowup.</summary>
+    /// <summary>Kept discs only; dismantled discs are not materialized, to bound memory and DOM.</summary>
     public List<Disc> GeneratedDiscs { get; set; } = new();
     public List<Disc> KeptDiscs { get; set; } = new();
-    /// <summary>Kept records only. Dismantled discs are aggregated into DismantledCount + DismantleReasonSummary.</summary>
+    /// <summary>Kept records only; dismantles are aggregated into counts.</summary>
     public List<CleanupDropRecord> DropRecords { get; set; } = new();
     public int DismantledCount { get; set; }
-    public Dictionary<string, int> DismantleReasonSummary { get; set; } = new();
+
+    /// <summary>
+    /// Per-reason dismantle counts, indexed by <see cref="DismantleReason"/>.
+    /// </summary>
+    /// <remarks>
+    /// A fixed array, not a string-keyed dictionary: the simulation bumps this per dropped
+    /// disc, and a dictionary allocated on nearly every iteration of a long run.
+    /// </remarks>
+    public int[] DismantleReasonCounts { get; set; } = new int[SimulationConfig.DismantleReasonCount];
+
     public int AutoCraftedCount { get; set; }
 
-    /// <summary>How many discs were dropped per partition, kept or not.</summary>
-    public Dictionary<int, int> DropCountsByPartition { get; set; } = new();
+    /// <summary>Discs dropped per partition, kept or not. Indexed by partition (index 0 unused).</summary>
+    public int[] DropCountsByPartition { get; set; } = new int[7];
+
+    /// <summary>Readable dismantle reasons, built on demand rather than maintained per drop.</summary>
+    public Dictionary<string, int> DismantleReasonSummary
+    {
+        get
+        {
+            var summary = new Dictionary<string, int>();
+            foreach (DismantleReason reason in Enum.GetValues<DismantleReason>())
+            {
+                int count = CountFor(reason);
+                if (count > 0) summary[Describe(reason)] = count;
+            }
+            return summary;
+        }
+    }
+
+    public int CountFor(DismantleReason reason) =>
+        (int)reason >= 0 && (int)reason < DismantleReasonCounts.Length
+            ? DismantleReasonCounts[(int)reason]
+            : 0;
+
+    public void RecordDismantle(DismantleReason reason)
+    {
+        if ((int)reason >= 0 && (int)reason < DismantleReasonCounts.Length)
+        {
+            DismantleReasonCounts[(int)reason]++;
+        }
+    }
+
+    /// <summary>Human-readable reason text.</summary>
+    public static string Describe(DismantleReason reason) => reason switch
+    {
+        DismantleReason.PartitionMismatch => "Partition mismatch",
+        DismantleReason.BelowMinRollValue => "Below min roll value",
+        DismantleReason.InventoryFullAllLocked => "Inventory full (all retained discs locked)",
+        DismantleReason.EvictedForCap => "Evicted to make room",
+        _ => "Unknown"
+    };
 
     public double AverageCv => KeptDiscs.Count > 0 ? Math.Round(KeptDiscs.Average(d => d.GetCritValue()), 1) : 0;
 }

@@ -4,22 +4,26 @@ namespace DiscDriveSimulator.Services;
 
 public class DiscGenerator : IDiscGenerator
 {
-    private readonly Random _random;
+    // Deliberately NOT readonly. Xoshiro128 is a mutable struct; a readonly field makes the
+    // compiler copy it on every method call, so the state would never advance and every draw
+    // would return the same value. The distribution tests catch this immediately - a
+    // single-value RNG makes every disc roll identical substats.
+    private Xoshiro128 _random;
     private static readonly DiscSet[] AllSets = Enum.GetValues<DiscSet>()
         .Where(s => s != DiscSet.SetAlpha && s != DiscSet.SetBeta)
         .ToArray();
 
-    public DiscGenerator() : this(new Random())
+    public DiscGenerator()
     {
     }
 
     /// <summary>
-    /// Test seam: allows a seeded <see cref="Random"/> so distribution tests can compare
-    /// sampled RV against real generated discs deterministically.
+    /// Test seam: a seeded RNG lets distribution tests compare sampled RV against real
+    /// generated discs deterministically.
     /// </summary>
-    public DiscGenerator(Random random)
+    public DiscGenerator(int seed)
     {
-        _random = random;
+        _random = new Xoshiro128(seed);
     }
 
     public Disc GenerateDisc(int? partition = null, DiscSet? set = null, bool isCrafted = false)
@@ -56,6 +60,8 @@ public class DiscGenerator : IDiscGenerator
         }
         return drops;
     }
+
+    public double NextUniform() => _random.NextDouble();
 
     public int NextDropCount()
     {
@@ -108,10 +114,7 @@ public class DiscGenerator : IDiscGenerator
         };
     }
 
-    /// <summary>
-    /// Draws <paramref name="count"/> distinct substats uniformly from the pool minus the
-    /// main stat, via Fisher-Yates on a fresh list.
-    /// </summary>
+    /// <summary>Draws distinct substats uniformly from the pool minus the main stat.</summary>
     private List<SubstatRoll> GenerateSubstats(StatType mainStat, int count)
     {
         var pool = BuildPool(mainStat);
@@ -127,19 +130,11 @@ public class DiscGenerator : IDiscGenerator
     }
 
     /// <summary>
-    /// Draws substats conditioned on exactly <paramref name="desiredRollValue"/> of them
-    /// being prioritized.
+    /// Draws substats conditioned on exactly <paramref name="desiredRollValue"/> being prioritized.
     /// </summary>
     /// <remarks>
-    /// Splits the pool into prioritized and non-prioritized groups, takes
-    /// <paramref name="desiredRollValue"/> distinct prioritized stats and the remainder from
-    /// the rest, then interleaves them in uniformly random order.
-    /// <para>
-    /// The result is uniform over every substat subset with that exact RV, which is what
-    /// makes this safe to use: conditioning on RV and then drawing uniformly within the
-    /// conditioned set leaves the marginal distribution identical to ordinary generation.
-    /// A disc built this way is indistinguishable from one that happened to roll that way.
-    /// </para>
+    /// Uniform over every substat subset with that RV, so the marginal distribution matches
+    /// ordinary generation and the disc is indistinguishable from one that rolled that way.
     /// </remarks>
     private List<SubstatRoll> GenerateSubstatsWithRollValue(StatType mainStat, int count,
         int desiredRollValue, IReadOnlyCollection<StatType> prioritized)

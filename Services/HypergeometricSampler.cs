@@ -3,52 +3,33 @@ using DiscDriveSimulator.Models;
 namespace DiscDriveSimulator.Services;
 
 /// <summary>
-/// Closed-form sampler for Roll Value (RV), used by the simulation fast path to decide
-/// keep/dismantle <em>without</em> materializing a <see cref="Disc"/>.
+/// Closed-form sampler for Roll Value, letting the fast path decide keep/dismantle without
+/// materializing a <see cref="Disc"/>.
 /// </summary>
 /// <remarks>
-/// <para><b>Why RV is hypergeometric.</b> RV is the sum of <c>SubstatRoll.RollHits</c>
-/// over the substats that appear in a partition's prioritized set
-/// (see <see cref="Disc.GetRollValue(HashSet{StatType}?)"/>). Every substat roll is
-/// created with exactly one hit — <see cref="DiscGenerator"/> never increments it — so
-/// RV collapses to <i>the count of drawn substats that are prioritized</i>.
+/// <para>
+/// RV is the count of drawn substats that are prioritized: every roll has exactly one hit and
+/// nothing increments it. Substats are drawn as a shuffle-and-take-prefix, which draws
+/// <i>distinct</i> pool elements — sampling without replacement. So with pool size <c>n</c>
+/// after main-stat exclusion, <c>d</c> prioritized stats surviving in it, and <c>k</c> drawn:
+///
+/// <c>X ~ Hypergeometric(n, d, k)</c>, i.e. <c>P(X = x) = C(d,x)·C(n-d,k-x) / C(n,k)</c>.
 /// </para>
-///
-/// <para><b>Why the draws are without replacement.</b> <see cref="DiscGenerator.GenerateDisc"/>
-/// builds its pool as <c>SubstatPool</c> minus the disc's main stat, Fisher-Yates shuffles
-/// it, and takes the first <c>k ∈ {3, 4}</c> entries. A shuffle-and-take-prefix draws
-/// <c>k</c> <i>distinct</i> pool elements, each with equal probability — the textbook
-/// "sampling without replacement" model.
+/// <para>
+/// The distribution depends only on the counts <c>(n, d, k)</c>, so it collapses to
+/// precomputed tables and one binary search replaces the whole shuffle-and-count pipeline.
+/// A dismantled drop then costs one uniform double.
 /// </para>
-///
-/// <para>Consequently, with pool size <c>n</c> (after main-stat exclusion), <c>d</c>
-/// prioritized stats still present in the pool, and <c>k</c> substats drawn:</para>
-///
-/// <code>
-///              d      n - d
-///         C( , x) · C(     , k - x)      d    n - d      C(n, k)
-// P(X = x) = -------------------------  =  --------  · -----------------
-///              n      n                 C(n, x)  C(n, k)      C(n, k)
-/// </code>
-///
-/// <para>That is the hypergeometric distribution: <c>X ~ Hypergeometric(n, d, k)</c>.
-/// It depends only on the <i>counts</i> <c>(n, d, k)</c> — never on which specific stats
-/// the priority list names, nor on which set was rolled. So the whole distribution
-/// collapses to a handful of precomputed tables, and one binary search over a CDF
-/// replaces the entire substat-shuffle-and-count pipeline.
+/// <para>
+/// <b>Traps.</b> Two subtleties are load-bearing and were both bugs first: the substat count
+/// is itself random (3 or 4), so RV is a <i>mixture</i> over k; and a main stat only shrinks
+/// the pool if it is a pool member, which slots 5 and 6 offer several that are not.
 /// </para>
-///
-/// <para><b>Consequences for the simulation.</b> Because RV is known before any substats
-/// are built, a disc that will be dismantled costs a single uniform double plus a
-/// binary search — no <see cref="Disc"/>, no <see cref="Guid"/>, no LINQ, no
-/// <c>SubstatRoll</c> allocations. Only kept discs are materialized. See
-/// <c>docs/hypergeometric-sampling.md</c> for the full derivation and worked example.</para>
-///
-/// <para><b>Numerical exactness.</b> Tables are built as ratios of binomial coefficients
-/// evaluated in <see cref="double"/>. That is exact for the sizes this game actually uses
-/// (<c>n ≤ 10</c>, <c>k ≤ 4</c>), where <c>C(10, 4) = 210</c> is far inside double
-/// precision. The guard constants below throw rather than degrade silently, because a
-/// silently-wrong distribution in a simulator is worse than a crash.
+/// <para>
+/// Tables are ratios of binomial coefficients in <see cref="double"/>, exact at
+/// <c>n ≤ 10</c>, <c>k ≤ 4</c>. The guards throw rather than degrade: a silently-wrong
+/// distribution is worse than a crash. Full derivation in
+/// <c>docs/hypergeometric-sampling.md</c>.
 /// </para>
 /// </remarks>
 public static class HypergeometricSampler
@@ -114,21 +95,12 @@ public static class HypergeometricSampler
     }
 
     /// <summary>
-    /// Builds the RV distribution for a freshly generated disc, which is a
-    /// <em>mixture</em> over substat counts rather than a single hypergeometric.
+    /// RV distribution for a fresh disc: a mixture over the two possible substat counts.
     /// </summary>
     /// <remarks>
-    /// <see cref="DiscGenerator.GenerateDisc"/> does
-    /// <c>int initialSubCount = _random.Next(2) == 0 ? 3 : 4;</c> — the disc's substat
-    /// count is itself random, chosen uniformly. So the true RV distribution is
-    /// <code>0.5 · Hypergeom(n, d, 3) + 0.5 · Hypergeom(n, d, 4)</code>, and using
-    /// either term alone skews the tail. Measured against real generation, assuming a
-    /// fixed <c>k = 3</c> overstates <c>P(RV = 0)</c> by roughly 33% relative
-    /// (0.238 vs the true 0.179), which would keep noticeably too many bad discs.
+    /// Assuming a fixed <c>k = 3</c> overstates <c>P(RV = 0)</c> by ~33% relative
+    /// (0.238 vs the true 0.179) and keeps too many bad discs.
     /// </remarks>
-    /// <param name="n">Pool size after excluding the disc's main stat.</param>
-    /// <param name="d">Number of prioritized stats present in that pool.</param>
-    /// <returns>A mixed PMF indexed by RV, summing to exactly 1.</returns>
     public static double[] BuildInitialSubstatMixture(int n, int d)
     {
         var three = BuildTable(n, d, 3);
@@ -148,11 +120,7 @@ public static class HypergeometricSampler
         return mixed;
     }
 
-    /// <summary>
-    /// Builds a cumulative distribution from a PMF so sampling is a single binary search.
-    /// The last entry is forced to exactly 1.0 so cumulative rounding can never leave
-    /// a uniform draw of 1.0 falling off the end.
-    /// </summary>
+    /// <summary>CDF from a PMF, so sampling is one binary search. Last entry forced to 1.0.</summary>
     public static double[] ToCumulative(double[] pmf)
     {
         var cdf = new double[pmf.Length];
@@ -166,15 +134,7 @@ public static class HypergeometricSampler
         return cdf;
     }
 
-    /// <summary>
-    /// Samples <c>X ~ Hypergeometric(n, d, k)</c> from a precomputed CDF using inverse
-    /// transform sampling.
-    /// </summary>
-    /// <param name="cdf">
-    /// A CDF from <see cref="ToCumulative"/> for the <c>(n, d, k)</c> of interest.
-    /// </param>
-    /// <param name="u">A uniform draw in <c>[0, 1)</c> — use <c>Random.NextDouble()</c>.</param>
-    /// <returns>The sampled value of <c>X</c>, in <c>[0, cdf.Length - 1]</c>.</returns>
+    /// <summary>Inverse-transform sample from a CDF produced by <see cref="ToCumulative"/>.</summary>
     public static int Sample(double[] cdf, double u)
     {
         int lo = 0;
@@ -191,17 +151,12 @@ public static class HypergeometricSampler
     }
 
     /// <summary>
-    /// Builds the RV distribution for a disc with a <i>specific</i> main stat.
+    /// RV distribution conditional on a specific main stat.
     /// </summary>
     /// <remarks>
-    /// Used by the simulation fast path, which draws the main stat first and then needs the
-    /// RV distribution <em>conditional</em> on it. The main stat must be drawn before RV
-    /// because it changes the pool: a prioritized stat that becomes the main stat is removed
-    /// from the substat pool, dropping <c>d</c> by one.
+    /// Main stat is drawn first because it changes the pool: a prioritized stat that becomes
+    /// the main stat is removed, dropping <c>d</c> by one.
     /// </remarks>
-    /// <param name="partition">Partition 1-6.</param>
-    /// <param name="mainStat">The disc's main stat.</param>
-    /// <param name="prioritized">Prioritized substats for that partition.</param>
     public static double[] BuildTableFor(int partition, StatType mainStat,
         IReadOnlyCollection<StatType> prioritized)
     {
@@ -211,13 +166,12 @@ public static class HypergeometricSampler
     }
 
     /// <summary>
-    /// Builds the RV distribution for a disc with a given main stat <i>and</i> a given
-    /// substat count — the conditional case, with no mixture over <c>k</c>.
+    /// RV distribution for a given main stat <i>and</i> substat count — no mixture over k.
     /// </summary>
     /// <remarks>
-    /// The fast path draws <c>k</c> before sampling RV precisely so it can use this. Sampling
-    /// RV from the mixture and then drawing <c>k</c> independently leaves the RV marginal
-    /// correct while corrupting the composition of discs with fewer substats.
+    /// The fast path draws k before sampling RV precisely to use this. Sampling from the
+    /// mixture and drawing k independently leaves the RV marginal correct while corrupting
+    /// the composition of low-substat discs.
     /// </remarks>
     public static double[] BuildTableFor(int partition, StatType mainStat, int substatCount,
         IReadOnlyCollection<StatType> prioritized)
@@ -228,29 +182,12 @@ public static class HypergeometricSampler
             substatCount);
     }
 
-    /// <summary>
-    /// Builds the full RV distribution for a disc on a given partition, mixing over every
-    /// possible main stat.
-    /// </summary>
+    /// <summary>RV distribution for a partition, mixing over every main stat it can roll.</summary>
     /// <remarks>
-    /// There are <b>two</b> independent sources, and missing either skews the result:
-    /// <list type="number">
-    /// <item><b>Substat count.</b> <see cref="DiscGenerator.GenerateDisc"/> picks
-    /// 3 or 4 substats uniformly, so each main-stat case is itself a mixture over
-    /// <c>k ∈ {3, 4}</c> — see <see cref="BuildInitialSubstatMixture"/>.</item>
-    /// <item><b>Main stat.</b> Partitions 1-3 have a fixed main stat (HP/ATK/DEF), giving a
-    /// single case. Partitions 4-6 pick uniformly from a slot-specific pool, and when a
-    /// prioritized stat happens to <i>be</i> the main stat it is removed from the pool,
-    /// dropping <c>d</c> by one. That case must be weighted by how often the main stat is
-    /// that stat.</item>
-    /// </list>
-    /// For the default priorities (CritRate, CritDmg, ATKPercent) this matters a lot on
-    /// partition 4: CritRate/CritDmg/ATKPercent are 3 of its 6 possible main stats, so
-    /// ignoring the mix mispredicts the RV tail on the slot people care about most.
+    /// Partitions 1-3 have one fixed main stat. 4-6 mix their slot pool, weighted by how often
+    /// each main stat occurs — on partition 4 three of six main stats are prioritized, so
+    /// ignoring the weights mispredicts the RV tail on the slot players care about most.
     /// </remarks>
-    /// <param name="partition">Partition 1-6.</param>
-    /// <param name="prioritized">Prioritized substats for that partition.</param>
-    /// <returns>A PMF indexed by RV, summing to exactly 1.</returns>
     public static double[] BuildPartitionTable(int partition, IReadOnlyCollection<StatType> prioritized)
     {
         var mainStatPool = MainStatPoolFor(partition);
