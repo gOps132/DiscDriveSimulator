@@ -111,6 +111,21 @@ Tables are ratios of binomial coefficients in `double`. Exact at the sizes this 
 (`n ≤ 10`, `k ≤ 4`, so `C(10,4) = 210`). `BuildTable` throws above `MaxExactPoolSize` (20) or
 `MaxExactDrawCount` (8): a silently-wrong distribution in a simulator is worse than a crash.
 
+## Draw order matters
+
+The fast path draws, per drop: partition → main stat → substat count `k` → RV. Each step is
+what the *next* step's table depends on.
+
+- **Main stat before RV**, because a prioritized stat that becomes the main stat leaves the
+  pool, dropping `d`.
+- **`k` before RV**, sampling from the `k`-specific table rather than the mixture.
+
+Sampling RV from the mixture and then drawing `k` independently leaves the **RV marginal
+correct** while corrupting the composition of low-substat discs: `P(RV = x | k = 3)` would be
+the mixture instead of `Hypergeom(n, d, 3)`. A marginal-only test passes and the bug ships,
+so `RunSimulationAsync_RollValueIsCorrectPerSubstatCount` asserts the joint distribution with
+a tolerance that scales with cell size.
+
 ## What this does not fix
 
 - **Average CV** (`SimulationRunResult.AverageCv`) still depends on real substat values. It is
@@ -121,6 +136,13 @@ Tables are ratios of binomial coefficients in `double`. Exact at the sizes this 
 - **When everything is kept**, e.g. RV threshold 1 with no partition target, there is nothing
   to skip and the fast path saves little. The cap (`SimulationConfig.MaxInventoryDiscs`) is what
   bounds memory in that case.
+
+## Migration note
+
+`SimulationState.AutoDismantleOnSim` is kept as a serialized property but its setter is a
+no-op: it always reads `true`. Saves written before this change with `false` deserialize
+without error and are silently upgraded. That is intended — the fast path only pays when
+auto-dismantle is on, so it is an invariant rather than a preference.
 
 ## Files
 

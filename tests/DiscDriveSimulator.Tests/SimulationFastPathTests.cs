@@ -93,6 +93,89 @@ public class SimulationFastPathTests
     }
 
     [Fact]
+    public async Task RunSimulationAsync_RollValueIsCorrectPerSubstatCount()
+    {
+        // The joint (k, RV) distribution, not just the RV marginal. If RV were sampled from
+        // the k-mixture while k was drawn independently, 3-substat discs would be composed
+        // from the wrong table — invisible to a marginal check.
+        var service = NewService(out var state);
+        state.TargetCleanupPartition = null;
+        state.MinCleanupRv = 1; // keep everything so all (k, RV) cells are populated
+
+        var result = await service.RunSimulationAsync(40_000 * 60);
+
+        Assert.True(result.KeptDiscs.Count > 5000, $"Need a big sample, got {result.KeptDiscs.Count}.");
+
+        foreach (int partition in new[] { 1, 4, 5 })
+        {
+            var prioritized = state.GetPrioritizedSubstatsForPartition(partition).ToHashSet();
+            int totalForPartition = result.KeptDiscs.Count(d => d.Partition == partition);
+            Assert.True(totalForPartition > 500, $"Partition {partition}: only {totalForPartition} kept.");
+
+            // Slots 4-6 draw their main stat, and the RV table depends on it, so verify the
+            // joint (main stat, k, RV) distribution against each main stat's own table.
+            foreach (var mainStat in SimulationConfig.MainStatOptionsFor(partition))
+            {
+                var perMain = new Dictionary<(int, int), int>();
+                foreach (var disc in result.KeptDiscs)
+                {
+                    if (disc.Partition != partition || disc.MainStat != mainStat) continue;
+                    var key = (disc.InitialSubstatCount, disc.GetRollValue(prioritized));
+                    perMain.TryGetValue(key, out int n);
+                    perMain[key] = n + 1;
+                }
+
+                int totalForMain = perMain.Values.Sum();
+                if (totalForMain < 200) continue;
+
+                foreach (int k in SimulationConfig.SubstatCountOptions)
+                {
+                    var table = HypergeometricSampler.BuildTableFor(
+                        partition, mainStat, k, prioritized);
+
+                    // Normalize over the RV values that survive the threshold, since
+                    // everything below it was dismantled and never reached inventory.
+                    double survivorMass = 0;
+                    for (int rv = state.MinCleanupRv; rv < table.Length; rv++)
+                    {
+                        survivorMass += table[rv];
+                    }
+                    if (survivorMass <= 0) continue;
+
+                    double observedSurvivors = 0;
+                    for (int rv = state.MinCleanupRv; rv < table.Length; rv++)
+                    {
+                        perMain.TryGetValue((k, rv), out int n);
+                        observedSurvivors += n / (double)totalForMain;
+                    }
+                    if (observedSurvivors <= 0) continue;
+
+                    for (int rv = state.MinCleanupRv; rv < table.Length; rv++)
+                    {
+                        perMain.TryGetValue((k, rv), out int n);
+                        double observed = n / (double)totalForMain / observedSurvivors;
+                        double expected = table[rv] / survivorMass;
+
+                        // Tolerance scales with cell size: 4 binomial standard deviations
+                        // plus a small floor. A fixed tolerance would either flake on small
+                        // cells or hide a real error on large ones.
+                        double n0 = n / observedSurvivors;
+                        double tolerance = 4 * Math.Sqrt(Math.Max(expected * (1 - expected), 1e-9) / Math.Max(n0, 1)) + 0.005;
+
+                        Assert.True(Math.Abs(observed - expected) < tolerance,
+                            $"Partition {partition} main={mainStat} k={k} RV={rv}: " +
+                            $"observed {observed:F4} vs Hypergeom(n,d,{k}) {expected:F4} " +
+                            $"(n={n0:F0}, tolerance {tolerance:F4})");
+                    }
+                }
+            }
+        }
+    }
+
+    private static StatType MainStatFor(int partition) =>
+        SimulationConfig.MainStatOptionsFor(partition).First();
+
+    [Fact]
     public void AutoDismantleOnSim_IsAlwaysOn()
     {
         var state = new SimulationState { AutoDismantleOnSim = false };

@@ -8,6 +8,28 @@ public static class SimulationConfig
     public const int MasterCopiesPerCraft = 6;
 
     /// <summary>
+    /// Substat counts a freshly generated disc can roll. <see cref="DiscGenerator"/> picks
+    /// uniformly from these, so the hypergeometric sampler must build a table per entry.
+    /// </summary>
+    public static readonly int[] SubstatCountOptions = { 3, 4 };
+
+    /// <summary>
+    /// Every main stat a partition can roll. Partitions 1-3 have a fixed main stat; 4-6 draw
+    /// uniformly from the slot-specific pool. Single source of truth, so the simulation fast
+    /// path and the hypergeometric sampler cannot drift apart.
+    /// </summary>
+    public static IEnumerable<StatType> MainStatOptionsFor(int partition) => partition switch
+    {
+        1 => new[] { StatType.HP },
+        2 => new[] { StatType.ATK },
+        3 => new[] { StatType.DEF },
+        4 => Slot4MainStats,
+        5 => Slot5MainStats,
+        6 => Slot6MainStats,
+        _ => new[] { StatType.HP }
+    };
+
+    /// <summary>
     /// Hard ceiling on retained inventory. Blazor WASM holds every kept disc in
     /// memory and serializes the whole inventory to localStorage, so unbounded
     /// growth crashes the tab. Exceeding this trims lowest-RV discs and credits

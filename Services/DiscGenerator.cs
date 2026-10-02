@@ -90,10 +90,9 @@ public class DiscGenerator : IDiscGenerator
     public int NextInitialSubstatCount() => _random.Next(2) == 0 ? 3 : 4;
 
     public Disc GenerateDiscWithRollValue(int partition, DiscSet? set, StatType mainStat,
-        int desiredRollValue, IReadOnlyCollection<StatType> prioritized)
+        int substatCount, int desiredRollValue, IReadOnlyCollection<StatType> prioritized)
     {
         DiscSet s = set ?? AllSets[_random.Next(AllSets.Length)];
-        int initialSubCount = NextInitialSubstatCount();
 
         return new Disc
         {
@@ -102,8 +101,8 @@ public class DiscGenerator : IDiscGenerator
             Set = s,
             MainStat = mainStat,
             MainStatValue = SimulationConfig.GetDefaultMainStatValue(partition, mainStat),
-            InitialSubstatCount = initialSubCount,
-            Substats = GenerateSubstatsWithRollValue(mainStat, initialSubCount, desiredRollValue, prioritized),
+            InitialSubstatCount = substatCount,
+            Substats = GenerateSubstatsWithRollValue(mainStat, substatCount, desiredRollValue, prioritized),
             IsCrafted = false,
             CreatedAt = DateTime.UtcNow
         };
@@ -154,10 +153,15 @@ public class DiscGenerator : IDiscGenerator
             else other.Add(stat);
         }
 
-        if (desiredRollValue > wanted.Count || count - desiredRollValue > other.Count)
+        if (desiredRollValue < 0 || desiredRollValue > count ||
+            desiredRollValue > wanted.Count || count - desiredRollValue > other.Count)
         {
             // Unreachable while the caller's RV came from a table built over this same pool,
             // but silently emitting a disc with the wrong RV would corrupt every statistic.
+            // The `> count` guard matters when more than 4 stats are prioritized: the
+            // substat mixture tops out at min(d, 4), so a 3-substat disc can be asked for
+            // an RV of 4, which passes the availability checks but would emit 4 substats
+            // while reporting InitialSubstatCount = 3.
             throw new InvalidOperationException(
                 $"Cannot build {count} substats with RV {desiredRollValue} for main stat " +
                 $"{mainStat}: {wanted.Count} prioritized and {other.Count} other available.");

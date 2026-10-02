@@ -53,8 +53,13 @@ public interface IDiscGenerator
     /// <param name="partition">Partition 1-6.</param>
     /// <param name="set">Disc set, or null to draw one.</param>
     /// <param name="mainStat">Main stat to force.</param>
+    /// <param name="substatCount">
+    /// How many substats the disc gets. Supplied by the caller rather than drawn here,
+    /// because the caller samples RV from a table keyed on this count — drawing it twice
+    /// would decouple the disc's composition from the RV it was kept for.
+    /// </param>
     /// <param name="desiredRollValue">How many of the drawn substats must be prioritized.</param>
     /// <param name="prioritized">The prioritized substats for this partition.</param>
     Disc GenerateDiscWithRollValue(int partition, DiscSet? set, StatType mainStat,
-        int desiredRollValue, IReadOnlyCollection<StatType> prioritized);
+        int substatCount, int desiredRollValue, IReadOnlyCollection<StatType> prioritized);
 }

@@ -211,6 +211,24 @@ public static class HypergeometricSampler
     }
 
     /// <summary>
+    /// Builds the RV distribution for a disc with a given main stat <i>and</i> a given
+    /// substat count — the conditional case, with no mixture over <c>k</c>.
+    /// </summary>
+    /// <remarks>
+    /// The fast path draws <c>k</c> before sampling RV precisely so it can use this. Sampling
+    /// RV from the mixture and then drawing <c>k</c> independently leaves the RV marginal
+    /// correct while corrupting the composition of discs with fewer substats.
+    /// </remarks>
+    public static double[] BuildTableFor(int partition, StatType mainStat, int substatCount,
+        IReadOnlyCollection<StatType> prioritized)
+    {
+        return BuildTable(
+            PoolSizeAfter(mainStat),
+            PrioritizedLeftAfter(mainStat, prioritized),
+            substatCount);
+    }
+
+    /// <summary>
     /// Builds the full RV distribution for a disc on a given partition, mixing over every
     /// possible main stat.
     /// </summary>
@@ -239,7 +257,7 @@ public static class HypergeometricSampler
 
         if (mainStatPool is null)
         {
-            var fixedStat = FixedMainStatFor(partition);
+            var fixedStat = SimulationConfig.MainStatOptionsFor(partition).First();
             return BuildTableFor(partition, fixedStat, prioritized);
         }
 
@@ -300,24 +318,13 @@ public static class HypergeometricSampler
     }
 
     /// <summary>The slot-specific main stat options, or null when the partition has a fixed one.</summary>
-    private static StatType[]? MainStatPoolFor(int partition) => partition switch
+    private static StatType[]? MainStatPoolFor(int partition)
     {
-        1 => null,
-        2 => null,
-        3 => null,
-        4 => SimulationConfig.Slot4MainStats,
-        5 => SimulationConfig.Slot5MainStats,
-        6 => SimulationConfig.Slot6MainStats,
-        _ => null
-    };
-
-    private static StatType FixedMainStatFor(int partition) => partition switch
-    {
-        1 => StatType.HP,
-        2 => StatType.ATK,
-        3 => StatType.DEF,
-        _ => StatType.HP
-    };
+        var options = SimulationConfig.MainStatOptionsFor(partition).ToArray();
+        // Partitions 1-3 offer exactly one main stat; the fast path never needs the
+        // "pool" form for those.
+        return options.Length == 1 ? null : options;
+    }
 
     /// <summary>
     /// The prioritized substats that apply to a given partition, matching what
