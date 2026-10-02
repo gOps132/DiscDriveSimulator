@@ -1,0 +1,19 @@
+/* Tailwind v4 input — preflight OFF on purpose (coexistence, no visual drift).
+   Theme + utilities only. Enable preflight later only if verified safe. */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+@theme {
+  --font-display: "Barlow Semi Condensed", "Impact", "Arial Black", sans-serif;
+  --color-rarity: #f2a900;
+  --color-abyss: #0c0d10;
+  --color-panel: #1c1c1c;
+}
+
+/* Hybrid home for game-art that must NOT become utilities (hex clip, rarity bar).
+   BOUNDARY (verified): layout/spacing/typography -> Tailwind utilities in .razor.
+   Game art stays vanilla: .zzz-modal-window (+watermark ::before), .disc-slot*
+   (hex clip-path, rarity bar), .s-rank-disc-card transforms, tuning.css console.
+   tuning.css (1,279 lines) is INTENTIONALLY not converted — close-enough bar. */
+@layer components {
+}

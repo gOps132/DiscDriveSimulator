@@ -4,7 +4,10 @@
 /* Shared ZZZ Modal Design System */
 @import url('modal-common.css');
 
-/* Bardic Needle Tuning Room & Circular Drive Bay Console */
+/* Bardic Needle Tuning Room & Circular Drive Bay Console.
+   INTENTIONALLY VANILLA (hybrid boundary): 1,279 lines of console game-art
+   (clip-paths, rarity, animations). Layout-only Tailwind may be added
+   additively in markup; do not rewrite these rules as utilities. */
 @import url('tuning.css');
 
 /* "Obtain" S-Rank Drop Modal */

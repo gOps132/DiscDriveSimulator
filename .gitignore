@@ -488,3 +488,6 @@ $RECYCLE.BIN/
 # AI and agent files
 AGENTS.md
 docs/agents/*
+
+# Git worktrees (isolated workspaces)
+.worktrees/
