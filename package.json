@@ -1,0 +1,13 @@
+{
+  "name": "discdrivesimulator",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "css:build": "npx @tailwindcss/cli -i ./wwwroot/css/tailwind.input.css -o ./wwwroot/css/tailwind.css",
+    "css:watch": "npx @tailwindcss/cli -i ./wwwroot/css/tailwind.input.css -o ./wwwroot/css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.1.0",
+    "@tailwindcss/cli": "^4.1.0"
+  }
+}
