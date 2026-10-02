@@ -49,11 +49,17 @@
 .flex-col {
   flex-direction: column;
 }
+.flex-wrap {
+  flex-wrap: wrap;
+}
 .content-start {
   align-content: flex-start;
 }
 .items-center {
   align-items: center;
+}
+.justify-between {
+  justify-content: space-between;
 }
 .overflow-hidden {
   overflow: hidden;

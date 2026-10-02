@@ -13,8 +13,8 @@
     <div class="modal-backdrop-overlay" @onclick="Close">
         <div class="zzz-modal-window storage-modal-window" data-watermark="INVENTORY" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="zzz-modal-header">
-                <div class="zzz-modal-title-group">
+            <div class="zzz-modal-header flex items-center justify-between">
+                <div class="zzz-modal-title-group flex items-center">
                     <img src="assets/Icon_Storage.webp" alt="Storage" class="zzz-modal-title-icon" />
                     <span class="zzz-modal-title">Drive Disc Storage</span>
                     <span class="zzz-count-pill">@filteredDiscs.Count / @Sim.State.Inventory.Count</span>
@@ -25,10 +25,10 @@
             </div>
 
             <!-- Filter & Action Toolbar -->
-            <div class="storage-toolbar">
-                <div class="storage-filters-row">
+            <div class="storage-toolbar flex flex-col">
+                <div class="storage-filters-row flex flex-wrap items-center">
                     <!-- Partition Filter Pills -->
-                    <div class="filter-pill-group">
+                    <div class="filter-pill-group flex items-center">
                         <span class="filter-label">Partition:</span>
                         <button type="button" class="filter-pill @(Sim.State.FilterPartition == null ? "active" : "")"
                                 @onclick="() => SetPartitionFilter(null)">All</button>
@@ -41,7 +41,7 @@
                     </div>
 
                     <!-- Set Filter -->
-                    <div class="filter-pill-group">
+                    <div class="filter-pill-group flex items-center">
                         <span class="filter-label">Set:</span>
                         <select class="storage-select" value="@(Sim.State.FilterSet?.ToString() ?? "")" @onchange="OnSetFilterChanged">
                             <option value="">All Sets</option>
@@ -53,7 +53,7 @@
                     </div>
 
                     <!-- Lock Filter -->
-                    <div class="filter-pill-group">
+                    <div class="filter-pill-group flex items-center">
                         <span class="filter-label">Lock:</span>
                         <button type="button" class="filter-pill @(Sim.State.FilterLock == null ? "active" : "")"
                                 @onclick="() => SetLockFilter(null)">All</button>
@@ -64,7 +64,7 @@
                     </div>
 
                     <!-- Sort Dropdown -->
-                    <div class="filter-pill-group">
+                    <div class="filter-pill-group flex items-center">
                         <span class="filter-label">Sort:</span>
                         <select class="storage-select" value="@Sim.State.CurrentSort" @onchange="OnSortChanged">
                             <option value="@SortOrder.HighestCv">Highest CV</option>

@@ -11,6 +11,9 @@
 }
 
 /* Hybrid home for game-art that must NOT become utilities (hex clip, rarity bar).
-   Real component classes move here in commit 3. */
+   BOUNDARY (verified): layout/spacing/typography -> Tailwind utilities in .razor.
+   Game art stays vanilla: .zzz-modal-window (+watermark ::before), .disc-slot*
+   (hex clip-path, rarity bar), .s-rank-disc-card transforms, tuning.css console.
+   tuning.css (1,279 lines) is INTENTIONALLY not converted — close-enough bar. */
 @layer components {
 }
