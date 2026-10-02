@@ -174,7 +174,7 @@
     <button type="button" class="btn-run-simulation"
             disabled="@(GetTotalCalculatedRuns() == 0 || isRunning)"
             @onclick="RunRoutineCleanup">
-        <span class="btn-sim-text">@(isRunning ? $"Cleaning... {(int)(runProgress * 100)}%" : "Start Cleanup")</span>
+        <span class="btn-sim-text">@(isRunning ? (runStatus ?? $"Cleaning... {(int)(runProgress * 100)}%") : "Start Cleanup")</span>
         <div class="btn-sim-cost">
             <img src="assets/Item_Battery_Charge.webp" alt="Cost" class="btn-battery-icon" />
             <span>@(GetTotalCalculatedRuns() * 60)</span>
@@ -243,6 +243,7 @@
 
     private bool isRunning = false;
     private double runProgress = 0;
+    private string? runStatus = null;
 
     protected override void OnInitialized()
     {
@@ -354,21 +355,31 @@
         // 3. Execute simulation in async batches so the WASM UI thread can paint progress
         isRunning = true;
         runProgress = 0;
+        runStatus = null;
         try
         {
             var progress = new Progress<double>(p =>
             {
                 runProgress = p;
+                runStatus = null;
                 StateHasChanged();
             });
             var result = await Sim.RunSimulationAsync(runs * 60, progress);
 
-            // 4. Save state
+            // 4. Compute is done — pin to 100% BEFORE the blocking save/render phase
+            // so the bar never stalls at 99% while localStorage + modal render.
+            runProgress = 1;
+            runStatus = "Saving...";
+            StateHasChanged();
+            await Task.Yield();
+
             await Storage.SaveStateAsync(Sim.State);
 
-            // 5. Notify parent callback
+            // 5. Notify parent callback (Home no longer re-saves for routine path)
             if (OnSimulationCompleted.HasDelegate)
             {
+                runStatus = "Opening...";
+                StateHasChanged();
                 await OnSimulationCompleted.InvokeAsync(result);
             }
         }
@@ -376,6 +387,7 @@
         {
             isRunning = false;
             runProgress = 0;
+            runStatus = null;
         }
     }
 

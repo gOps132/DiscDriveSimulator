@@ -7,6 +7,14 @@ public static class SimulationConfig
     public const int MaxDropsPerRun = 3;
     public const int MasterCopiesPerCraft = 6;
 
+    /// <summary>
+    /// Hard ceiling on retained inventory. Blazor WASM holds every kept disc in
+    /// memory and serializes the whole inventory to localStorage, so unbounded
+    /// growth crashes the tab. Exceeding this trims lowest-RV discs and credits
+    /// them as Master Copies instead of keeping them.
+    /// </summary>
+    public const int MaxInventoryDiscs = 5000;
+
     // Fixed base main stats (Level 0 S-Rank values)
     public static double GetDefaultMainStatValue(int partition, StatType stat)
     {

@@ -72,7 +72,7 @@
     private List<Disc> modalDiscs = new();
     private SimulationRunResult? lastRunSummary;
 
-    private async Task HandleRoutineCleanupCompleted(SimulationRunResult result)
+    private void HandleRoutineCleanupCompleted(SimulationRunResult result)
     {
         lastRunSummary = result;
         int total = result.TotalDrops > 0 ? result.TotalDrops : result.GeneratedDiscs.Count;
@@ -82,7 +82,9 @@
             modalDiscs = result.KeptDiscs.Count > 0 ? result.KeptDiscs : result.GeneratedDiscs;
             showObtainModal = true;
         }
-        await SaveState();
+        // No SaveState here — RoutineCleanupConsole already saved after compute.
+        // Saving twice serializes the whole inventory to localStorage twice and
+        // freezes the UI on the "99%" frame.
     }
 
 

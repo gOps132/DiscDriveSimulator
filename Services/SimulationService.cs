@@ -59,7 +59,15 @@ public class SimulationService : ISimulationService
         var stage = RoutineCleanupStage.AllStages.FirstOrDefault(s => s.Id == State.SelectedCleanupStageId)
                     ?? RoutineCleanupStage.AllStages[0];
 
-        const int yieldEveryRuns = 25;
+        // Batch size scales with run count so we yield a bounded ~400 times total.
+        // A fixed batch (e.g. every 5 runs) floods the WASM scheduler at 1M runs:
+        // 200k yields each cost a scheduler round-trip, so the work never lands.
+        var yieldEveryRuns = Math.Max(1, affordableRuns / 400);
+        int lastReportedPct = -1;
+        // Disc evicted on the next cap overflow. Recomputed once per batch rather
+        // than per kept disc: a full scan per disc would be O(cap x keptDiscs).
+        Disc? cachedWeakest = null;
+
         for (int r = 0; r < affordableRuns; r++)
         {
             ct.ThrowIfCancellationRequested();
@@ -69,13 +77,22 @@ public class SimulationService : ISimulationService
 
             foreach (var disc in drops)
             {
-                ProcessNewDisc(disc, result);
+                ProcessNewDisc(disc, ref cachedWeakest, result);
             }
 
             if ((r + 1) % yieldEveryRuns == 0)
             {
-                progress?.Report((double)(r + 1) / affordableRuns);
-                // Yield to the WASM UI thread so progress paints instead of freezing.
+                // Drop the cached pointer so the next overflow rescans.
+                cachedWeakest = null;
+
+                // Throttle repaints to whole percent steps so the UI thread isn't
+                // flooded with thousands of StateHasChanged calls on huge runs.
+                int pct = (int)((r + 1) * 100L / affordableRuns);
+                if (pct != lastReportedPct)
+                {
+                    lastReportedPct = pct;
+                    progress?.Report((double)(r + 1) / affordableRuns);
+                }
                 await Task.Yield();
             }
         }
@@ -85,7 +102,7 @@ public class SimulationService : ISimulationService
         return result;
     }
 
-    private void ProcessNewDisc(Disc disc, SimulationRunResult? result = null)
+    private void ProcessNewDisc(Disc disc, ref Disc? cachedWeakest, SimulationRunResult? result = null)
     {
         var priorities = State.GetPrioritizedSubstatsForPartition(disc.Partition);
         int rv = disc.GetRollValue(priorities);
@@ -103,6 +120,31 @@ public class SimulationService : ISimulationService
             {
                 isKept = false;
                 dismantleReason = $"RV {rv} below Min RV {State.MinCleanupRv}";
+            }
+        }
+
+        if (isKept && State.Inventory.Count >= SimulationConfig.MaxInventoryDiscs)
+        {
+            // Inventory is full. Evict the weakest retained disc first (never a locked
+            // one) so the cap keeps the best discs instead of blowing the WASM heap.
+            // Uses the per-batch cached candidate; rescans only if it's now null/locked.
+            if (cachedWeakest == null || cachedWeakest.IsLocked || !State.Inventory.Contains(cachedWeakest))
+            {
+                cachedWeakest = FindWeakestDisc();
+            }
+
+            if (cachedWeakest != null)
+            {
+                State.Inventory.Remove(cachedWeakest);
+                State.HiFiMasterCopies++;
+                State.TotalDiscsDismantled++;
+                cachedWeakest = null;
+            }
+            else
+            {
+                // Everything retained is locked — can't trim. Drop the new disc instead.
+                isKept = false;
+                dismantleReason = "Inventory cap reached (all retained discs locked)";
             }
         }
 
@@ -138,6 +180,29 @@ public class SimulationService : ISimulationService
                 // drops — compute-first, render-kept-only. This bounds WASM memory and DOM.
             }
         }
+    }
+
+    /// <summary>
+    /// Finds the single lowest-RV unlocked disc in inventory, or null if all are locked.
+    /// Called at most once per batch when the inventory cap is hit.
+    /// </summary>
+    private Disc? FindWeakestDisc()
+    {
+        Disc? weakest = null;
+        int weakestRv = int.MaxValue;
+
+        foreach (var d in State.Inventory)
+        {
+            if (d.IsLocked) continue;
+            int rv = d.GetRollValue(State.DesiredStats);
+            if (rv < weakestRv)
+            {
+                weakestRv = rv;
+                weakest = d;
+            }
+        }
+
+        return weakest;
     }
 
     public bool DismantleDisc(Disc disc)
