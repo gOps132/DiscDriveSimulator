@@ -22,6 +22,11 @@ public class SimulationService : ISimulationService
 
     public SimulationRunResult RunSimulation(int batteryCharge)
     {
+        return RunSimulationAsync(batteryCharge).GetAwaiter().GetResult();
+    }
+
+    public async Task<SimulationRunResult> RunSimulationAsync(int batteryCharge, IProgress<double>? progress = null, CancellationToken ct = default)
+    {
         int requestedRuns = batteryCharge / SimulationConfig.BatteryPerRun;
         int batteryNeeded = requestedRuns * SimulationConfig.BatteryPerRun;
 
@@ -54,18 +59,28 @@ public class SimulationService : ISimulationService
         var stage = RoutineCleanupStage.AllStages.FirstOrDefault(s => s.Id == State.SelectedCleanupStageId)
                     ?? RoutineCleanupStage.AllStages[0];
 
+        const int yieldEveryRuns = 25;
         for (int r = 0; r < affordableRuns; r++)
         {
+            ct.ThrowIfCancellationRequested();
             var drops = _generator.GenerateRunDrops(stage.Set1, stage.Set2);
             State.TotalDiscsDropped += drops.Count;
+            result.TotalDrops += drops.Count;
 
             foreach (var disc in drops)
             {
-                result.GeneratedDiscs.Add(disc);
                 ProcessNewDisc(disc, result);
+            }
+
+            if ((r + 1) % yieldEveryRuns == 0)
+            {
+                progress?.Report((double)(r + 1) / affordableRuns);
+                // Yield to the WASM UI thread so progress paints instead of freezing.
+                await Task.Yield();
             }
         }
 
+        progress?.Report(1.0);
         NotifyStateChanged();
         return result;
     }
@@ -94,24 +109,34 @@ public class SimulationService : ISimulationService
         if (isKept)
         {
             State.Inventory.Add(disc);
-            if (result != null) result.KeptDiscs.Add(disc);
+            if (result != null)
+            {
+                result.KeptDiscs.Add(disc);
+                result.GeneratedDiscs.Add(disc);
+                result.DropRecords.Add(new CleanupDropRecord
+                {
+                    Disc = disc,
+                    IsKept = true,
+                    RollValue = rv,
+                    DismantleReason = string.Empty
+                });
+            }
         }
         else
         {
             State.HiFiMasterCopies++;
             State.TotalDiscsDismantled++;
-            if (result != null) result.DismantledCount++;
-        }
-
-        if (result != null)
-        {
-            result.DropRecords.Add(new CleanupDropRecord
+            if (result != null)
             {
-                Disc = disc,
-                IsKept = isKept,
-                RollValue = rv,
-                DismantleReason = dismantleReason
-            });
+                result.DismantledCount++;
+                if (!string.IsNullOrEmpty(dismantleReason))
+                {
+                    result.DismantleReasonSummary.TryGetValue(dismantleReason, out int n);
+                    result.DismantleReasonSummary[dismantleReason] = n + 1;
+                }
+                // Intentionally NOT storing the Disc object or DropRecord for dismantled
+                // drops — compute-first, render-kept-only. This bounds WASM memory and DOM.
+            }
         }
     }
 

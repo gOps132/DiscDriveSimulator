@@ -9,6 +9,7 @@ public interface ISimulationService
 
     void SetState(SimulationState state);
     SimulationRunResult RunSimulation(int batteryCharge);
+    Task<SimulationRunResult> RunSimulationAsync(int batteryCharge, IProgress<double>? progress = null, CancellationToken ct = default);
     bool DismantleDisc(Disc disc);
     int DismantleDiscs(IEnumerable<Disc> discs);
     int DismantleNonMatching();

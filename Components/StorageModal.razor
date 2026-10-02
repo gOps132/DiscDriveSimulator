@@ -117,6 +117,7 @@
                             {
                                 var isInspected = inspectedStorageDisc?.Id == disc.Id;
                                 <div class="storage-disc-card @(isInspected ? "inspected" : "") @(disc.IsSelected ? "batch-selected" : "")"
+                                     @key="disc.Id"
                                      @onclick="() => SelectStorageDisc(disc)">
                                     <!-- Disc Slot Art & Corner Overlays -->
                                     <div class="storage-disc-slot-container">

@@ -11,10 +11,11 @@
             <div class="zzz-modal-header">
                 <div class="zzz-modal-title-group">
                     <div class="zzz-modal-title">Obtain</div>
-                    @if (RunSummary != null && RunSummary.DropRecords.Count > 0)
+                    @if (RunSummary != null && (RunSummary.TotalDrops > 0 || RunSummary.DropRecords.Count > 0 || RunSummary.GeneratedDiscs.Count > 0))
                     {
-                        var keptCount = RunSummary.DropRecords.Count(r => r.IsKept);
-                        var dismantledCount = RunSummary.DropRecords.Count(r => !r.IsKept);
+                        var keptCount = RunSummary.KeptDiscs.Count > 0 ? RunSummary.KeptDiscs.Count : RunSummary.DropRecords.Count(r => r.IsKept);
+                        if (keptCount == 0 && RunSummary.DropRecords.Count == 0) { keptCount = Discs.Count; }
+                        var dismantledCount = RunSummary.DismantledCount > 0 ? RunSummary.DismantledCount : RunSummary.DropRecords.Count(r => !r.IsKept);
                         <div class="zzz-modal-counts-sub">
                             <span class="count-kept">@keptCount Kept</span>
                             @if (dismantledCount > 0)
@@ -37,9 +38,10 @@
                         @foreach (var disc in Discs)
                         {
                             var isSelected = inspectedDisc?.Id == disc.Id;
-                            var record = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
+                            var record = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc != null && r.Disc.Id == disc.Id);
                             var isDismantled = record != null && !record.IsKept;
                             <div class="s-rank-disc-card flex cursor-pointer flex-col items-center @(isSelected ? "selected" : "")"
+                                 @key="disc.Id"
                                  @onclick="() => SelectDisc(disc)">
                                 <DiscSlot Disc="disc" IsSelected="isSelected" IsDismantled="isDismantled" Size="80px" />
                                 <span class="obtain-item-qty text-center font-display text-sm leading-none font-black text-white">1</span>
@@ -50,7 +52,7 @@
 
                 <!-- Right Detail Panel (Templatized Reusable ZZZ Component) -->
                 @{
-                    var inspectedRecord = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == inspectedDisc?.Id);
+                    var inspectedRecord = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc != null && r.Disc.Id == inspectedDisc?.Id);
                     var modalDiscIsDismantled = inspectedRecord != null && !inspectedRecord.IsKept;
                     var discPriorities = inspectedDisc != null
                         ? Sim.State.GetPrioritizedSubstatsForPartition(inspectedDisc.Partition)

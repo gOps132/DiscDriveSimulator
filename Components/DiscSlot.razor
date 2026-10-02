@@ -7,7 +7,7 @@
      style="@(string.IsNullOrEmpty(Size) ? "" : $"--size: {Size};")"
      @attributes="AdditionalAttributes">
     <div class="disc-slot__card">
-        <img class="disc-slot__img" src="@Disc.GetDiscImagePath(effectiveSet)" alt="@Disc.FormatSetName(effectiveSet)" />
+        <img class="disc-slot__img" src="@Disc.GetDiscImagePath(effectiveSet)" alt="@Disc.FormatSetName(effectiveSet)" loading="lazy" decoding="async" />
         @if (IsDismantled)
         {
             <div class="disc-slot__dismantled-tag">Dismantled</div>

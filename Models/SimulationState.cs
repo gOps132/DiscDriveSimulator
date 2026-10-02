@@ -150,7 +150,7 @@ public class SimulationState
 
 public class CleanupDropRecord
 {
-    public Disc Disc { get; set; } = null!;
+    public Disc? Disc { get; set; }
     public bool IsKept { get; set; }
     public int RollValue { get; set; }
     public string DismantleReason { get; set; } = string.Empty;
@@ -160,10 +160,15 @@ public class SimulationRunResult
 {
     public int Runs { get; set; }
     public int BatterySpent { get; set; }
+    /// <summary>Total discs rolled (kept + dismantled). Use for DROPS display.</summary>
+    public int TotalDrops { get; set; }
+    /// <summary>Kept discs only — this is what the UI renders. Dismantled discs are NOT materialized here to avoid WASM memory/DOM blowup.</summary>
     public List<Disc> GeneratedDiscs { get; set; } = new();
     public List<Disc> KeptDiscs { get; set; } = new();
+    /// <summary>Kept records only. Dismantled discs are aggregated into DismantledCount + DismantleReasonSummary.</summary>
     public List<CleanupDropRecord> DropRecords { get; set; } = new();
     public int DismantledCount { get; set; }
+    public Dictionary<string, int> DismantleReasonSummary { get; set; } = new();
     public int AutoCraftedCount { get; set; }
 
     public double AverageCv => KeptDiscs.Count > 0 ? Math.Round(KeptDiscs.Average(d => d.GetCritValue()), 1) : 0;

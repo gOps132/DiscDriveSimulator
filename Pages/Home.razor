@@ -75,10 +75,11 @@
     private async Task HandleRoutineCleanupCompleted(SimulationRunResult result)
     {
         lastRunSummary = result;
-        if (result.GeneratedDiscs.Count > 0)
+        int total = result.TotalDrops > 0 ? result.TotalDrops : result.GeneratedDiscs.Count;
+        if (total > 0)
         {
             obtainModalSource = "ROUTINE";
-            modalDiscs = result.GeneratedDiscs;
+            modalDiscs = result.KeptDiscs.Count > 0 ? result.KeptDiscs : result.GeneratedDiscs;
             showObtainModal = true;
         }
         await SaveState();

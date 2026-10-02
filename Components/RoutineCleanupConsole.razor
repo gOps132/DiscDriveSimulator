@@ -172,14 +172,18 @@
 
     <!-- Single Primary Execution Button -->
     <button type="button" class="btn-run-simulation"
-            disabled="@(GetTotalCalculatedRuns() == 0)"
+            disabled="@(GetTotalCalculatedRuns() == 0 || isRunning)"
             @onclick="RunRoutineCleanup">
-        <span class="btn-sim-text">Start Cleanup</span>
+        <span class="btn-sim-text">@(isRunning ? $"Cleaning... {(int)(runProgress * 100)}%" : "Start Cleanup")</span>
         <div class="btn-sim-cost">
             <img src="assets/Item_Battery_Charge.webp" alt="Cost" class="btn-battery-icon" />
             <span>@(GetTotalCalculatedRuns() * 60)</span>
         </div>
     </button>
+    @if (isRunning)
+    {
+        <div class="run-progress-bar"><div class="run-progress-fill" style="width:@((int)(runProgress * 100))%"></div></div>
+    }
 
     <!-- Bulk Run Result Summary Banner (if executed) -->
     @if (RunSummary != null)
@@ -191,7 +195,7 @@
             <div class="summary-stats-grid">
                 <div class="sum-stat">
                     <span class="sum-label">DROPS</span>
-                    <span class="sum-val">@RunSummary.GeneratedDiscs.Count</span>
+                    <span class="sum-val">@(RunSummary.TotalDrops > 0 ? RunSummary.TotalDrops : RunSummary.GeneratedDiscs.Count)</span>
                 </div>
                 <div class="sum-stat">
                     <span class="sum-label">KEPT</span>
@@ -236,6 +240,9 @@
 
     [Parameter]
     public EventCallback<SimulationRunResult> OnSimulationCompleted { get; set; }
+
+    private bool isRunning = false;
+    private double runProgress = 0;
 
     protected override void OnInitialized()
     {
@@ -332,6 +339,7 @@
 
     private async Task RunRoutineCleanup()
     {
+        if (isRunning) return;
         // 1. Dump all Ether Batteries into Battery Charge
         if (Sim.State.EtherBatteries > 0)
         {
@@ -343,16 +351,31 @@
         int runs = Sim.State.BatteryCharge / 60;
         if (runs <= 0) return;
 
-        // 3. Execute simulation
-        var result = Sim.RunSimulation(runs * 60);
-
-        // 4. Save state
-        await Storage.SaveStateAsync(Sim.State);
-
-        // 5. Notify parent callback
-        if (OnSimulationCompleted.HasDelegate)
+        // 3. Execute simulation in async batches so the WASM UI thread can paint progress
+        isRunning = true;
+        runProgress = 0;
+        try
         {
-            await OnSimulationCompleted.InvokeAsync(result);
+            var progress = new Progress<double>(p =>
+            {
+                runProgress = p;
+                StateHasChanged();
+            });
+            var result = await Sim.RunSimulationAsync(runs * 60, progress);
+
+            // 4. Save state
+            await Storage.SaveStateAsync(Sim.State);
+
+            // 5. Notify parent callback
+            if (OnSimulationCompleted.HasDelegate)
+            {
+                await OnSimulationCompleted.InvokeAsync(result);
+            }
+        }
+        finally
+        {
+            isRunning = false;
+            runProgress = 0;
         }
     }
 
