@@ -66,6 +66,21 @@ public class SimulationState
         return list;
     }
 
+    /// <summary>
+    /// The default prioritized substat set, applied to every partition until the user
+    /// configures a specific one. Shared as a static so the simulation fast path can
+    /// build RV distribution tables without instantiating state.
+    /// </summary>
+    public static HashSet<StatType> PrioritizedFor(int partition)
+    {
+        return new HashSet<StatType>
+        {
+            StatType.CritRate,
+            StatType.CritDmg,
+            StatType.ATKPercent
+        };
+    }
+
     public List<StatType> GetPrioritizedSubstatsForPartition(int? partition)
     {
         SanitizePriorities();
@@ -94,7 +109,17 @@ public class SimulationState
     public int MinCleanupRv { get; set; } = 2;
 
     // Automation Settings
-    public bool AutoDismantleOnSim { get; set; } = false;
+    /// <summary>
+    /// Whether the simulation auto-dismantles drops that miss the current RV threshold.
+    /// Always <c>true</c> in normal play: it is what keeps long runs from exhausting memory,
+    /// and the simulation fast path is only enabled when it is on. Retained as a serialized
+    /// property so existing saves deserialize, but nothing sets it to false anymore.
+    /// </summary>
+    public bool AutoDismantleOnSim
+    {
+        get => true;
+        set { /* forced on; see remarks */ }
+    }
     public bool AutoCraftOnSim { get; set; } = false;
     public int AutoCraftPartition { get; set; } = 4;
 
@@ -170,6 +195,9 @@ public class SimulationRunResult
     public int DismantledCount { get; set; }
     public Dictionary<string, int> DismantleReasonSummary { get; set; } = new();
     public int AutoCraftedCount { get; set; }
+
+    /// <summary>How many discs were dropped per partition, kept or not.</summary>
+    public Dictionary<int, int> DropCountsByPartition { get; set; } = new();
 
     public double AverageCv => KeptDiscs.Count > 0 ? Math.Round(KeptDiscs.Average(d => d.GetCritValue()), 1) : 0;
 }

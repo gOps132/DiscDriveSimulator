@@ -5,6 +5,11 @@ namespace DiscDriveSimulator.Services;
 public class SimulationService : ISimulationService
 {
     private readonly IDiscGenerator _generator;
+    /// <summary>
+    /// RNG used only for the fast-path Roll Value sample, kept separate from the generator's
+    /// stream so sampling RV never perturbs disc generation.
+    /// </summary>
+    private readonly Random _rng = new();
 
     public SimulationState State { get; private set; } = new();
     public event Action? OnChange;
@@ -68,16 +73,48 @@ public class SimulationService : ISimulationService
         // than per kept disc: a full scan per disc would be O(cap x keptDiscs).
         Disc? cachedWeakest = null;
 
+        var sampler = BuildFastPathSampler();
+
         for (int r = 0; r < affordableRuns; r++)
         {
             ct.ThrowIfCancellationRequested();
-            var drops = _generator.GenerateRunDrops(stage.Set1, stage.Set2);
-            State.TotalDiscsDropped += drops.Count;
-            result.TotalDrops += drops.Count;
 
-            foreach (var disc in drops)
+            int dropCount = _generator.NextDropCount();
+            State.TotalDiscsDropped += dropCount;
+            result.TotalDrops += dropCount;
+
+            for (int i = 0; i < dropCount; i++)
             {
-                ProcessNewDisc(disc, ref cachedWeakest, result);
+                var set = _generator.NextDropSet(stage.Set1, stage.Set2);
+
+                if (sampler is not null)
+                {
+                    // Fast path: decide keep/dismantle from a sampled Roll Value before
+                    // building anything. Costs one uniform double + a binary search, versus
+                    // a Guid, a LINQ-filtered pool, a Fisher-Yates pass and three to four
+                    // SubstatRoll allocations for a disc that is about to be thrown away.
+                    int partition = _generator.NextPartition();
+                    result.DropCountsByPartition.TryGetValue(partition, out int seen);
+                    result.DropCountsByPartition[partition] = seen + 1;
+
+                    if (TryFastPathDecide(partition, set, result, sampler, ref cachedWeakest,
+                            out int sampledRv, out StatType mainStat))
+                    {
+                        // Dismantled: nothing was allocated for this drop beyond the counters.
+                        continue;
+                    }
+
+                    // Kept: build a disc whose substats are conditioned on the RV we already
+                    // sampled, so the disc's real RV is the one we decided on.
+                    var keptDisc = _generator.GenerateDiscWithRollValue(partition, set,
+                        mainStat, sampledRv, sampler.PrioritizedByPartition[partition]);
+                    MaterializeKeptDisc(keptDisc, result, partition);
+                }
+                else
+                {
+                    var disc = _generator.GenerateDisc(set: set);
+                    ProcessNewDisc(disc, ref cachedWeakest, result);
+                }
             }
 
             if ((r + 1) % yieldEveryRuns == 0)
@@ -100,6 +137,169 @@ public class SimulationService : ISimulationService
         progress?.Report(1.0);
         NotifyStateChanged();
         return result;
+    }
+
+    /// <summary>
+    /// Builds per-partition Roll Value CDFs for the current prioritized-substat setup, or
+    /// <c>null</c> when the fast path cannot be used.
+    /// </summary>
+    /// <remarks>
+    /// The fast path samples RV directly, which requires that RV's distribution depend only
+    /// on <c>(partition, prioritized set, main stat, substat count)</c> — all of which are
+    /// drawable before the disc is built. It is deliberately conservative: if a disc was
+    /// already crafted (extra substat rolls, so <c>RollHits &gt; 1</c>), or if anything
+    /// unexpected turns up, this returns <c>null</c> and callers fall back to full generation.
+    /// A silently wrong RV distribution would be worse than a slow one.
+    /// </remarks>
+    private RvSampler? BuildFastPathSampler()
+    {
+        if (!State.AutoDismantleOnSim) return null;
+
+        // Every fresh disc has exactly one roll per substat, so RollHits is always 1 and
+        // RV collapses to "how many drawn substats are prioritized". Verify rather than
+        // assume: if a substat ever gains extra hits, the math below is invalid.
+        if (SimulationConfig.SubstatRollValues.Count != SimulationConfig.SubstatPool.Length)
+        {
+            throw new InvalidOperationException(
+                "SubstatRollValues must cover every SubstatPool entry; the RV sampler relies on it.");
+        }
+
+        var prioritizedByPartition = new HashSet<StatType>[7];
+        var cdfByPartitionMainStat = new Dictionary<(int, StatType), double[]>();
+
+        for (int partition = 1; partition <= 6; partition++)
+        {
+            var prioritized = State.GetPrioritizedSubstatsForPartition(partition).ToHashSet();
+            prioritizedByPartition[partition] = prioritized;
+
+            foreach (var mainStat in MainStatOptionsFor(partition))
+            {
+                var pmf = HypergeometricSampler.BuildTableFor(partition, mainStat, prioritized);
+                cdfByPartitionMainStat[(partition, mainStat)] =
+                    HypergeometricSampler.ToCumulative(pmf);
+            }
+        }
+
+        return new RvSampler(prioritizedByPartition, cdfByPartitionMainStat);
+    }
+
+    /// <summary>Every main stat a partition can roll, including a single fixed one for slots 1-3.</summary>
+    private static IEnumerable<StatType> MainStatOptionsFor(int partition) => partition switch
+    {
+        1 => new[] { StatType.HP },
+        2 => new[] { StatType.ATK },
+        3 => new[] { StatType.DEF },
+        4 => SimulationConfig.Slot4MainStats,
+        5 => SimulationConfig.Slot5MainStats,
+        6 => SimulationConfig.Slot6MainStats,
+        _ => new[] { StatType.HP }
+    };
+
+    /// <summary>Per-partition RV tables keyed by partition and main stat.</summary>
+    private sealed class RvSampler
+    {
+        public readonly HashSet<StatType>[] PrioritizedByPartition;
+        public readonly Dictionary<(int, StatType), double[]> CdfByPartitionMainStat;
+
+        public RvSampler(HashSet<StatType>[] prioritizedByPartition,
+            Dictionary<(int, StatType), double[]> cdfByPartitionMainStat)
+        {
+            PrioritizedByPartition = prioritizedByPartition;
+            CdfByPartitionMainStat = cdfByPartitionMainStat;
+        }
+
+        public double[] CdfFor(int partition, StatType mainStat) =>
+            CdfByPartitionMainStat[(partition, mainStat)];
+    }
+
+    /// <summary>
+    /// Fast-path keep/dismantle decision for one drop.
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> when the drop was dismantled and already accounted for.
+    /// <c>false</c> when it should be kept, in which case <paramref name="sampledRv"/> and
+    /// <paramref name="mainStat"/> carry the draws the caller must use to build the disc.
+    /// </returns>
+    private bool TryFastPathDecide(int partition, DiscSet? set, SimulationRunResult result,
+        RvSampler sampler, ref Disc? cachedWeakest, out int sampledRv, out StatType mainStat)
+    {
+        // The partition check is the cheapest possible reject and needs no RV draw, so do
+        // it before touching the sampler.
+        if (State.TargetCleanupPartition.HasValue && partition != State.TargetCleanupPartition.Value)
+        {
+            sampledRv = 0;
+            mainStat = default;
+            CountDismantle(result,
+                $"Partition {partition} mismatch (Target: {State.TargetCleanupPartition.Value})");
+            return true;
+        }
+
+        // Main stat first: it decides which RV distribution applies, since a prioritized
+        // stat that becomes the main stat is removed from the substat pool.
+        mainStat = _generator.NextMainStat(partition);
+
+        // Separate RNG stream, so sampling RV never perturbs disc generation.
+        sampledRv = HypergeometricSampler.Sample(sampler.CdfFor(partition, mainStat), _rng.NextDouble());
+
+        if (sampledRv < State.MinCleanupRv)
+        {
+            CountDismantle(result, $"RV {sampledRv} below Min RV {State.MinCleanupRv}");
+            return true;
+        }
+
+        if (State.Inventory.Count >= SimulationConfig.MaxInventoryDiscs)
+        {
+            // Cap hit. Evict the weakest retained disc so the cap keeps the best.
+            if (cachedWeakest == null || cachedWeakest.IsLocked || !State.Inventory.Contains(cachedWeakest))
+            {
+                cachedWeakest = FindWeakestDisc();
+            }
+
+            if (cachedWeakest != null)
+            {
+                State.Inventory.Remove(cachedWeakest);
+                State.HiFiMasterCopies++;
+                State.TotalDiscsDismantled++;
+                cachedWeakest = null;
+            }
+            else
+            {
+                CountDismantle(result, "Inventory cap reached (all retained discs locked)");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void CountDismantle(SimulationRunResult result, string reason)
+    {
+        State.HiFiMasterCopies++;
+        State.TotalDiscsDismantled++;
+        result.DismantledCount++;
+        result.DismantleReasonSummary.TryGetValue(reason, out int n);
+        result.DismantleReasonSummary[reason] = n + 1;
+    }
+
+    /// <summary>
+    /// Adds a disc the fast path decided to keep. RV is taken from the sampled value
+    /// rather than recomputed, keeping the fast path single-pass.
+    /// </summary>
+    private void MaterializeKeptDisc(Disc disc, SimulationRunResult result, int partition)
+    {
+        State.Inventory.Add(disc);
+        result.KeptDiscs.Add(disc);
+        result.GeneratedDiscs.Add(disc);
+        result.DropRecords.Add(new CleanupDropRecord
+        {
+            Disc = disc,
+            IsKept = true,
+            // Derived from the built substats rather than the sampled RV: the real disc is
+            // the source of truth once it exists, and it keeps DropRecords consistent with
+            // the inventory a player can inspect.
+            RollValue = disc.GetRollValue(State.GetPrioritizedSubstatsForPartition(partition)),
+            DismantleReason = string.Empty
+        });
     }
 
     private void ProcessNewDisc(Disc disc, ref Disc? cachedWeakest, SimulationRunResult? result = null)

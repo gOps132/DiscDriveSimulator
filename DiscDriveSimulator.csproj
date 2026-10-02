@@ -7,6 +7,14 @@
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
   </PropertyGroup>
 
+  <!-- Tests live in a subfolder; keep them out of the Blazor compilation and wwwroot. -->
+  <ItemGroup>
+    <Compile Remove="tests/**" />
+    <Content Remove="tests/**" />
+    <None Remove="tests/**" />
+    <EmbeddedResource Remove="tests/**" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" PrivateAssets="all" />

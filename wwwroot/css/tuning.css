@@ -615,6 +615,19 @@
     height: 14px;
 }
 
+/* Auto-dismantle is no longer a toggle: it's an always-on invariant. */
+.automation-toggle--static {
+    cursor: default;
+    color: #a1a1aa;
+}
+
+.automation-hint {
+    margin: 0;
+    font-size: 0.68rem;
+    line-height: 1.35;
+    color: #71717a;
+}
+
 /* Run Simulation Button */
 .btn-run-simulation {
     background: #2b2e37;

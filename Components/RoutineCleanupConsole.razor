@@ -164,10 +164,13 @@
 
     <!-- Automation Settings -->
     <div class="automation-settings-box">
-        <label class="automation-toggle">
-            <input type="checkbox" @bind="Sim.State.AutoDismantleOnSim" />
-            <span>Auto-dismantle non-matching drops</span>
-        </label>
+        <div class="automation-toggle automation-toggle--static" role="note">
+            <span>Auto-dismantle non-matching drops — always on</span>
+        </div>
+        <p class="automation-hint">
+            Drops below your RV threshold are dismantled as they roll, so only discs worth
+            keeping enter storage. This is what lets long runs stay fast.
+        </p>
     </div>
 
     <!-- Single Primary Execution Button -->
