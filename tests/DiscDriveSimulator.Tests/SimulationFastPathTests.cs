@@ -176,6 +176,129 @@ public class SimulationFastPathTests
         SimulationConfig.MainStatOptionsFor(partition).First();
 
     [Fact]
+    public void GetStorageView_MatchesSeparateCountsAndFilter()
+    {
+        var generator = new DiscGenerator(new Random(31337));
+        var service = new SimulationService(generator);
+        var state = service.State;
+        state.BatteryCharge = int.MaxValue / 2;
+        state.MinCleanupRv = 1;
+        state.TargetCleanupPartition = null;
+
+        service.RunSimulationAsync(800 * SimulationConfig.BatteryPerRun).GetAwaiter().GetResult();
+        Assert.True(state.Inventory.Count > 100, "Need inventory to be meaningful.");
+
+        // Sprinkle locks and selections so every tally branch is exercised.
+        foreach (var disc in state.Inventory)
+        {
+            disc.IsSelected = false;
+            disc.IsLocked = false;
+        }
+        state.Inventory[0].IsLocked = true;
+        state.Inventory[1].IsSelected = true;
+        state.Inventory[2].IsSelected = true;
+        state.Inventory[3].IsLocked = true;
+        state.Inventory[3].IsSelected = true; // locked + selected: must not be counted
+        state.FilterPartition = 4;
+
+        var view = service.GetStorageView();
+        var expectedFiltered = service.GetFilteredDiscs();
+
+        Assert.Equal(expectedFiltered.Count, view.FilteredDiscs.Count);
+        Assert.Equal(
+            state.Inventory.Count(d => !d.IsLocked && !service.MatchesFilter(d)),
+            view.NonMatchingDismantleableCount);
+        Assert.Equal(
+            state.Inventory.Count(d => d.IsSelected && !d.IsLocked),
+            view.SelectedCount);
+
+        // Filtered contents and order must be identical, not just the count.
+        Assert.Equal(expectedFiltered.Select(d => d.Id), view.FilteredDiscs.Select(d => d.Id));
+    }
+
+    [Fact]
+    public void GetStorageView_SortsByEveryOrder()
+    {
+        var generator = new DiscGenerator(new Random(555));
+        var service = new SimulationService(generator);
+        var state = service.State;
+        state.BatteryCharge = int.MaxValue / 2;
+        state.MinCleanupRv = 1;
+        state.TargetCleanupPartition = null;
+        service.RunSimulationAsync(300 * SimulationConfig.BatteryPerRun).GetAwaiter().GetResult();
+
+        foreach (SortOrder order in Enum.GetValues<SortOrder>())
+        {
+            state.CurrentSort = order;
+
+            var view = service.GetStorageView();
+            var discs = view.FilteredDiscs;
+
+            switch (order)
+            {
+                case SortOrder.HighestCv:
+                    for (int i = 1; i < discs.Count; i++)
+                    {
+                        Assert.True(discs[i - 1].GetCritValue() >= discs[i].GetCritValue(),
+                            $"CV descending violated at {i} for {order}");
+                    }
+                    break;
+                case SortOrder.HighestRv:
+                    for (int i = 1; i < discs.Count; i++)
+                    {
+                        Assert.True(discs[i - 1].GetRollValue(state.DesiredStats)
+                                    >= discs[i].GetRollValue(state.DesiredStats),
+                            $"RV descending violated at {i} for {order}");
+                    }
+                    break;
+                case SortOrder.PartitionAsc:
+                    for (int i = 1; i < discs.Count; i++)
+                        Assert.True(discs[i - 1].Partition <= discs[i].Partition);
+                    break;
+                case SortOrder.PartitionDesc:
+                    for (int i = 1; i < discs.Count; i++)
+                        Assert.True(discs[i - 1].Partition >= discs[i].Partition);
+                    break;
+                case SortOrder.Newest:
+                    for (int i = 1; i < discs.Count; i++)
+                        Assert.True(discs[i - 1].CreatedAt >= discs[i].CreatedAt);
+                    break;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GetStorageView_SinglePassScalesToFullInventory()
+    {
+        var generator = new DiscGenerator(new Random(777));
+        var service = new SimulationService(generator);
+        var state = service.State;
+        state.BatteryCharge = int.MaxValue / 2;
+        state.MinCleanupRv = 1;
+        state.TargetCleanupPartition = null;
+
+        // Fill to the inventory cap, then assert the view is produced well inside a frame
+        // budget. This is a regression guard, not a benchmark: the old five-pass version
+        // took hundreds of ms here.
+        await service.RunSimulationAsync(SimulationConfig.MaxInventoryDiscs * SimulationConfig.BatteryPerRun);
+        while (state.Inventory.Count < SimulationConfig.MaxInventoryDiscs)
+        {
+            state.Inventory.Add(new Disc { Partition = 1, Set = DiscSet.SwingJazz, MainStat = StatType.HP });
+        }
+
+        state.CurrentSort = SortOrder.HighestRv;
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var view = service.GetStorageView();
+        sw.Stop();
+
+        Assert.Equal(SimulationConfig.MaxInventoryDiscs, view.FilteredDiscs.Count);
+        Assert.True(sw.ElapsedMilliseconds < 200,
+            $"Storage view took {sw.ElapsedMilliseconds}ms for {state.Inventory.Count} discs; " +
+            "expected well under a frame budget.");
+    }
+
+    [Fact]
     public void AutoDismantleOnSim_IsAlwaysOn()
     {
         var state = new SimulationState { AutoDismantleOnSim = false };

@@ -6,24 +6,29 @@
 
 @if (IsOpen)
 {
-    var filteredDiscs = Sim.GetFilteredDiscs();
-    var nonMatchingCount = Sim.State.Inventory.Count(d => !d.IsLocked && !Sim.MatchesFilter(d));
-    var selectedCount = Sim.State.Inventory.Count(d => d.IsSelected && !d.IsLocked);
+    // One pass over the inventory for the filtered list and both batch counts. On a full
+    // storage this used to be five filter-and-sort passes per render, which dominated
+    // frame time and made every click feel dead.
+    var view = Sim.GetStorageView();
+    var filteredDiscs = view.FilteredDiscs;
+    var nonMatchingCount = view.NonMatchingDismantleableCount;
+    var selectedCount = view.SelectedCount;
 
     // Render one page at a time. The full grid is up to MaxInventoryDiscs cards, each a
     // DiscSlot component plus an image; building all of them at once is what makes a full
     // storage unusable. Filtering and sorting still run over the whole set, so pages are
     // just a window onto the same ordered list.
+    // Clamp before paging so a shrunk list cannot leave us past the end.
     var totalPages = Math.Max(1, (int)Math.Ceiling(filteredDiscs.Count / (double)DiscsPerPage));
     if (currentPage > totalPages) currentPage = totalPages;
     if (currentPage < 1) currentPage = 1;
 
-    var pageDiscs = filteredDiscs
-        .Skip((currentPage - 1) * DiscsPerPage)
-        .Take(DiscsPerPage)
-        .ToList();
-    var rangeStart = filteredDiscs.Count == 0 ? 0 : (currentPage - 1) * DiscsPerPage + 1;
-    var rangeEnd = rangeStart + pageDiscs.Count - 1;
+    var skip = (currentPage - 1) * DiscsPerPage;
+    var pageDiscs = skip < filteredDiscs.Count
+        ? filteredDiscs.GetRange(skip, Math.Min(DiscsPerPage, filteredDiscs.Count - skip))
+        : new List<Disc>();
+    var rangeStart = pageDiscs.Count == 0 ? 0 : skip + 1;
+    var rangeEnd = skip + pageDiscs.Count;
 
     <div class="modal-backdrop-overlay" @onclick="Close">
         <div class="zzz-modal-window storage-modal-window" data-watermark="INVENTORY" @onclick:stopPropagation="true">
@@ -225,16 +230,30 @@
         currentPage = Math.Max(1, page);
     }
 
+    /// <summary>
+    /// Keeps the inspected disc valid after inventory or filter changes.
+    /// </summary>
+    /// <remarks>
+    /// Uses reference equality for the membership checks. Identity lookups by
+    /// <see cref="Disc.Id"/> meant a full inventory scan on every filter change, and the
+    /// filtered list holds the same <see cref="Disc"/> instances that inventory does, so
+    /// <see cref="object.ReferenceEquals"/> is both correct and O(n) at worst with no
+    /// delegate allocation.
+    /// </remarks>
     private void EnsureValidInspectedDisc()
     {
         var filtered = Sim.GetFilteredDiscs();
-        if (inspectedStorageDisc == null || !Sim.State.Inventory.Any(d => d.Id == inspectedStorageDisc.Id))
+
+        if (inspectedStorageDisc == null ||
+            !Sim.State.Inventory.Any(d => ReferenceEquals(d, inspectedStorageDisc)))
         {
-            inspectedStorageDisc = filtered.FirstOrDefault() ?? Sim.State.Inventory.FirstOrDefault();
+            // Inspected disc is gone entirely (dismantled, or never set).
+            inspectedStorageDisc = filtered.Count > 0 ? filtered[0] : Sim.State.Inventory.FirstOrDefault();
         }
-        else if (!filtered.Any(d => d.Id == inspectedStorageDisc.Id) && filtered.Count > 0)
+        else if (!filtered.Any(d => ReferenceEquals(d, inspectedStorageDisc)) && filtered.Count > 0)
         {
-            inspectedStorageDisc = filtered.FirstOrDefault();
+            // Still owned, but filtered out, so fall back to the first match.
+            inspectedStorageDisc = filtered[0];
         }
     }
 
@@ -255,10 +274,11 @@
 
     private void SelectAllUnlocked()
     {
-        var filtered = Sim.GetFilteredDiscs();
-        foreach (var d in filtered.Where(x => !x.IsLocked))
+        // Deliberately every match, not just the visible page: the button reads "Select All"
+        // and partial-page selection would silently surprise players on a paginated grid.
+        foreach (var d in Sim.GetFilteredDiscs())
         {
-            d.IsSelected = true;
+            if (!d.IsLocked) d.IsSelected = true;
         }
     }
 

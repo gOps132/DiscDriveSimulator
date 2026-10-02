@@ -173,6 +173,17 @@ public class SimulationState
     }
 }
 
+/// <summary>
+/// Everything the storage grid needs about the whole inventory, computed in one pass.
+/// </summary>
+/// <param name="FilteredDiscs">Matching discs, already in the current sort order.</param>
+/// <param name="NonMatchingDismantleableCount">Unlocked discs that do not match the filter.</param>
+/// <param name="SelectedCount">Unlocked discs flagged for batch dismantling.</param>
+public record StorageView(
+    List<Disc> FilteredDiscs,
+    int NonMatchingDismantleableCount,
+    int SelectedCount);
+
 public class CleanupDropRecord
 {
     public Disc? Disc { get; set; }

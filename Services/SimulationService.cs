@@ -440,19 +440,81 @@ public class SimulationService : ISimulationService
 
     public List<Disc> GetFilteredDiscs()
     {
-        var query = State.Inventory.Where(MatchesFilter);
+        return SortFiltered(State.Inventory.Where(MatchesFilter));
+    }
 
-        query = State.CurrentSort switch
+    /// <summary>
+    /// Filter, sort, and tally the inventory in a single pass.
+    /// </summary>
+    /// <remarks>
+    /// The storage grid needs three separate facts about the whole inventory: the matching
+    /// discs in sort order, how many non-matching discs are dismantlable, and how many are
+    /// batch-selected. Answering those with independent LINQ chains means filtering the
+    /// inventory several times and sorting more than once per render. On a full storage that
+    /// was five filter-and-sort passes, and the RV sort calls <see cref="Disc.GetRollValue"/>
+    /// twice per comparison, so it dominated frame time.
+    /// <para>
+    /// Doing it in one pass here keeps the grid at one filter and one sort per render. The
+    /// tradeoff is that sort keys are computed once per disc up front rather than per
+    /// comparison, which trades a few redundant computations during sorting for far fewer
+    /// RV/CV recomputations overall.
+    /// </para>
+    /// </remarks>
+    public StorageView GetStorageView()
+    {
+        var matches = new List<Disc>(State.Inventory.Count);
+        int nonMatching = 0;
+        int selected = 0;
+
+        foreach (var disc in State.Inventory)
         {
-            SortOrder.HighestCv => query.OrderByDescending(d => d.GetCritValue()),
-            SortOrder.HighestRv => query.OrderByDescending(d => d.GetRollValue(State.DesiredStats)).ThenByDescending(d => d.GetCritValue()),
-            SortOrder.PartitionAsc => query.OrderBy(d => d.Partition).ThenByDescending(d => d.GetCritValue()),
-            SortOrder.PartitionDesc => query.OrderByDescending(d => d.Partition).ThenByDescending(d => d.GetCritValue()),
-            SortOrder.Newest => query.OrderByDescending(d => d.CreatedAt),
-            _ => query.OrderByDescending(d => d.GetCritValue())
-        };
+            if (disc.IsSelected && !disc.IsLocked) selected++;
 
-        return query.ToList();
+            if (!MatchesFilter(disc))
+            {
+                if (!disc.IsLocked) nonMatching++;
+                continue;
+            }
+
+            matches.Add(disc);
+        }
+
+        return new StorageView(SortFiltered(matches), nonMatching, selected);
+    }
+
+    /// <summary>
+    /// Applies the current sort. Computes each key once per disc: with
+    /// <see cref="Disc.GetRollValue"/> behind a tiebreaker, a computed key beats recomputing
+    /// it on every comparison.
+    /// </summary>
+    private List<Disc> SortFiltered(IEnumerable<Disc> discs)
+    {
+        return State.CurrentSort switch
+        {
+            SortOrder.HighestRv => discs
+                .OrderByDescending(d => d.GetRollValue(State.DesiredStats))
+                .ThenByDescending(d => d.GetCritValue())
+                .ToList(),
+
+            SortOrder.PartitionAsc => discs
+                .OrderBy(d => d.Partition)
+                .ThenByDescending(d => d.GetCritValue())
+                .ToList(),
+
+            SortOrder.PartitionDesc => discs
+                .OrderByDescending(d => d.Partition)
+                .ThenByDescending(d => d.GetCritValue())
+                .ToList(),
+
+            SortOrder.Newest => discs
+                .OrderByDescending(d => d.CreatedAt)
+                .ToList(),
+
+            // HighestCv is also the default, so a full storage pays for this on open.
+            _ => discs
+                .OrderByDescending(d => d.GetCritValue())
+                .ToList()
+        };
     }
 
     public void Reset()
