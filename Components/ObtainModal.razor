@@ -29,20 +29,20 @@
                 </button>
             </div>
 
-            <div class="obtain-body">
+            <div class="obtain-body grid w-full">
                 <!-- Left 6-Column Disc Grid Section -->
-                <div class="obtain-left-section">
+                <div class="obtain-left-section flex min-h-0 flex-col overflow-hidden">
                     <div class="obtain-subtitle">Use @(RunSummary?.Runs ?? 1) times to obtain:</div>
-                    <div class="obtain-disc-grid">
+                    <div class="obtain-disc-grid grid content-start overflow-x-hidden overflow-y-auto">
                         @foreach (var disc in Discs)
                         {
                             var isSelected = inspectedDisc?.Id == disc.Id;
                             var record = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc.Id == disc.Id);
                             var isDismantled = record != null && !record.IsKept;
-                            <div class="s-rank-disc-card @(isSelected ? "selected" : "")"
+                            <div class="s-rank-disc-card flex cursor-pointer flex-col items-center @(isSelected ? "selected" : "")"
                                  @onclick="() => SelectDisc(disc)">
                                 <DiscSlot Disc="disc" IsSelected="isSelected" IsDismantled="isDismantled" Size="80px" />
-                                <span class="obtain-item-qty">1</span>
+                                <span class="obtain-item-qty text-center font-display text-sm leading-none font-black text-white">1</span>
                             </div>
                         }
                     </div>
