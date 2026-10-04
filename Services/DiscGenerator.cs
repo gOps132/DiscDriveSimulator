@@ -13,14 +13,15 @@ public class DiscGenerator : IDiscGenerator
         .Where(s => s != DiscSet.SetAlpha && s != DiscSet.SetBeta)
         .ToArray();
 
-    public DiscGenerator()
+    public DiscGenerator() : this(Random.Shared.Next())
     {
+        // Chains to the seeded constructor. A default-constructed Xoshiro128 is all zeros,
+        // and the all-zero state can never advance: NextUInt32 would return 0 forever and
+        // Next(min, max) would reject it forever. That froze the app on the first click.
     }
 
-    /// <summary>
-    /// Test seam: a seeded RNG lets distribution tests compare sampled RV against real
-    /// generated discs deterministically.
-    /// </summary>
+    // Test seam: a seeded RNG lets distribution tests compare sampled RV against real
+    // generated discs deterministically.
     public DiscGenerator(int seed)
     {
         _random = new Xoshiro128(seed);
@@ -114,7 +115,7 @@ public class DiscGenerator : IDiscGenerator
         };
     }
 
-    /// <summary>Draws distinct substats uniformly from the pool minus the main stat.</summary>
+    // Draws distinct substats uniformly from the pool minus the main stat.
     private List<SubstatRoll> GenerateSubstats(StatType mainStat, int count)
     {
         var pool = BuildPool(mainStat);
@@ -129,13 +130,10 @@ public class DiscGenerator : IDiscGenerator
         return substats;
     }
 
-    /// <summary>
-    /// Draws substats conditioned on exactly <paramref name="desiredRollValue"/> being prioritized.
-    /// </summary>
-    /// <remarks>
-    /// Uniform over every substat subset with that RV, so the marginal distribution matches
-    /// ordinary generation and the disc is indistinguishable from one that rolled that way.
-    /// </remarks>
+    // Draws substats conditioned on exactly desiredRollValue being prioritized.
+    //
+    // Uniform over every substat subset with that RV, so the marginal distribution matches
+    // ordinary generation and the disc is indistinguishable from one that rolled that way.
     private List<SubstatRoll> GenerateSubstatsWithRollValue(StatType mainStat, int count,
         int desiredRollValue, IReadOnlyCollection<StatType> prioritized)
     {
@@ -176,7 +174,7 @@ public class DiscGenerator : IDiscGenerator
         return substats;
     }
 
-    /// <summary>Substat pool members other than the main stat.</summary>
+    // Substat pool members other than the main stat.
     private static List<StatType> BuildPool(StatType mainStat)
     {
         var pool = new List<StatType>(SimulationConfig.SubstatPool.Length - 1);

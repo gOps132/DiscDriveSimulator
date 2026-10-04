@@ -66,7 +66,7 @@ public class SimulationState
         return list;
     }
 
-    /// <summary>Default prioritized substats, shared so the fast path can build tables without state.</summary>
+    // Default prioritized substats, shared so the fast path can build tables without state.
     public static HashSet<StatType> PrioritizedFor(int partition)
     {
         return new HashSet<StatType>
@@ -75,6 +75,20 @@ public class SimulationState
             StatType.CritDmg,
             StatType.ATKPercent
         };
+    }
+
+    // Priorities a run actually scores a partition against.
+//
+// When a target partition is set, that slot's own list applies — and since only that slot
+// can survive the partition check, per-partition scoring and active-list scoring coincide.
+// When the target is All (null), every slot is scored, so the shared All-slots list (key 0,
+// the one the console editor shows) must apply to all of them. Scoring per-partition lists
+// there silently ignores what the player configured: with 4 priorities edited but 3 in each
+// slot list, max RV is 3, so a Min RV of 4 keeps nothing out of millions of drops.
+    public List<StatType> GetRunPriorities(int partition)
+    {
+        if (TargetCleanupPartition == null) return GetActivePrioritizedSubstats();
+        return GetPrioritizedSubstatsForPartition(partition);
     }
 
     public List<StatType> GetPrioritizedSubstatsForPartition(int? partition)
@@ -105,14 +119,11 @@ public class SimulationState
     public int MinCleanupRv { get; set; } = 2;
 
     // Automation Settings
-    /// <summary>
-    /// Whether the simulation auto-dismantles drops that miss the current RV threshold.
-    /// </summary>
-    /// <remarks>
-    /// Always <c>true</c> in normal play: the fast path only pays when it is on, and without
-    /// it long runs exhaust the heap. Kept as a serialized property so existing saves
-    /// deserialize; nothing sets it to false.
-    /// </remarks>
+    // Whether the simulation auto-dismantles drops that miss the current RV threshold.
+    //
+    // Always true in normal play: the fast path only pays when it is on, and without it long
+    // runs exhaust the heap. Kept as a serialized property so existing saves deserialize;
+    // nothing sets it to false.
     public bool AutoDismantleOnSim
     {
         get => true;
@@ -171,12 +182,8 @@ public class SimulationState
     }
 }
 
-/// <summary>
-/// Everything the storage grid needs about the whole inventory, computed in one pass.
-/// </summary>
-/// <param name="FilteredDiscs">Matching discs, already in the current sort order.</param>
-/// <param name="NonMatchingDismantleableCount">Unlocked discs that do not match the filter.</param>
-/// <param name="SelectedCount">Unlocked discs flagged for batch dismantling.</param>
+// Everything the storage grid needs about the whole inventory, computed in one pass.
+// FilteredDiscs are matching discs in sort order; both counts cover unlocked discs only.
 public record StorageView(
     List<Disc> FilteredDiscs,
     int NonMatchingDismantleableCount,
@@ -194,30 +201,27 @@ public class SimulationRunResult
 {
     public int Runs { get; set; }
     public int BatterySpent { get; set; }
-    /// <summary>Total discs rolled (kept + dismantled). Use for DROPS display.</summary>
+    // Total discs rolled (kept + dismantled). Use for DROPS display.
     public int TotalDrops { get; set; }
-    /// <summary>Kept discs only; dismantled discs are not materialized, to bound memory and DOM.</summary>
+    // Kept discs only; dismantled discs are not materialized, to bound memory and DOM.
     public List<Disc> GeneratedDiscs { get; set; } = new();
     public List<Disc> KeptDiscs { get; set; } = new();
-    /// <summary>Kept records only; dismantles are aggregated into counts.</summary>
+    // Kept records only; dismantles are aggregated into counts.
     public List<CleanupDropRecord> DropRecords { get; set; } = new();
     public int DismantledCount { get; set; }
 
-    /// <summary>
-    /// Per-reason dismantle counts, indexed by <see cref="DismantleReason"/>.
-    /// </summary>
-    /// <remarks>
-    /// A fixed array, not a string-keyed dictionary: the simulation bumps this per dropped
-    /// disc, and a dictionary allocated on nearly every iteration of a long run.
-    /// </remarks>
+    // Per-reason dismantle counts, indexed by DismantleReason.
+    //
+    // A fixed array, not a string-keyed dictionary: the simulation bumps this per dropped disc,
+    // and a dictionary allocated on nearly every iteration of a long run.
     public int[] DismantleReasonCounts { get; set; } = new int[SimulationConfig.DismantleReasonCount];
 
     public int AutoCraftedCount { get; set; }
 
-    /// <summary>Discs dropped per partition, kept or not. Indexed by partition (index 0 unused).</summary>
+    // Discs dropped per partition, kept or not. Indexed by partition (index 0 unused).
     public int[] DropCountsByPartition { get; set; } = new int[7];
 
-    /// <summary>Readable dismantle reasons, built on demand rather than maintained per drop.</summary>
+    // Readable dismantle reasons, built on demand rather than maintained per drop.
     public Dictionary<string, int> DismantleReasonSummary
     {
         get
@@ -245,7 +249,7 @@ public class SimulationRunResult
         }
     }
 
-    /// <summary>Human-readable reason text.</summary>
+    // Human-readable reason text.
     public static string Describe(DismantleReason reason) => reason switch
     {
         DismantleReason.PartitionMismatch => "Partition mismatch",

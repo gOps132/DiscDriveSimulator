@@ -6,10 +6,8 @@ public class SimulationService : ISimulationService
 {
     private readonly IDiscGenerator _generator;
 
-    /// <summary>
-    /// Roll value of the currently cached weakest retained disc, so the cap comparison does
-    /// not rescore it per drop. Reset whenever the cached disc reference is invalidated.
-    /// </summary>
+    // Roll value of the currently cached weakest retained disc, so the cap comparison does
+    // not rescore it per drop. Reset whenever the cached disc reference is invalidated.
     private int weakestRetainedRv = int.MaxValue;
 
     public SimulationState State { get; private set; } = new();
@@ -31,15 +29,11 @@ public class SimulationService : ISimulationService
         return RunSimulationAsync(batteryCharge).GetAwaiter().GetResult();
     }
 
-    /// <summary>
-    /// Runs <paramref name="batteryCharge"/> worth of cleanup, batching so the WASM UI thread
-    /// can paint progress.
-    /// </summary>
-    /// <remarks>
-    /// Drops are decided by sampling Roll Value from precomputed hypergeometric tables, and
-    /// only kept discs are materialized. See <see cref="HypergeometricSampler"/> for why that
-    /// is distributionally identical to generating every disc.
-    /// </remarks>
+    // Runs batteryCharge worth of cleanup, batching so the WASM UI thread can paint progress.
+    //
+    // Drops are decided by sampling Roll Value from precomputed hypergeometric tables, and
+    // only kept discs are materialized. See HypergeometricSampler for why that is
+    // distributionally identical to generating every disc.
     public async Task<SimulationRunResult> RunSimulationAsync(int batteryCharge, IProgress<double>? progress = null, CancellationToken ct = default)
     {
         int requestedRuns = batteryCharge / SimulationConfig.BatteryPerRun;
@@ -142,17 +136,13 @@ public class SimulationService : ISimulationService
         return result;
     }
 
-    /// <summary>
-    /// Builds the Roll Value CDFs for the current prioritized-substat setup, one per
-    /// <c>(partition, main stat, substat count)</c> combination.
-    /// </summary>
-    /// <remarks>
-    /// The fast path samples RV directly, which requires that RV's distribution depend only
-    /// on those three things plus the prioritized set — all of which are drawable before the
-    /// disc is built. Anything unexpected throws from <see cref="RvSampler.CdfFor"/> rather
-    /// than falling back to a slower path, because a silently wrong RV distribution would
-    /// corrupt every statistic the simulator reports.
-    /// </remarks>
+    // Builds the Roll Value CDFs for the current prioritized-substat setup, one per
+    // (partition, main stat, substat count) combination.
+    //
+    // The fast path samples RV directly, which requires that RV's distribution depend only on
+    // those three things plus the prioritized set — all drawable before the disc is built.
+    // Anything unexpected throws from RvSampler.CdfFor rather than falling back to a slower
+    // path, because a silently wrong RV distribution would corrupt every statistic reported.
     private RvSampler BuildFastPathSampler()
     {
 
@@ -170,7 +160,7 @@ public class SimulationService : ISimulationService
 
         for (int partition = 1; partition <= 6; partition++)
         {
-            var prioritized = State.GetPrioritizedSubstatsForPartition(partition).ToHashSet();
+            var prioritized = State.GetRunPriorities(partition).ToHashSet();
             prioritizedByPartition[partition] = prioritized;
 
             foreach (var mainStat in SimulationConfig.MainStatOptionsFor(partition))
@@ -188,12 +178,10 @@ public class SimulationService : ISimulationService
         return new RvSampler(prioritizedByPartition, cdfs);
     }
 
-    /// <summary>
-    /// Identifies one RV distribution: everything that determines it.
-    /// </summary>
+    // Identifies one RV distribution: everything that determines it.
     private readonly record struct RvKey(int Partition, StatType MainStat, int SubstatCount);
 
-    /// <summary>Per-partition prioritized sets plus the RV CDFs keyed by <see cref="RvKey"/>.</summary>
+    // Per-partition prioritized sets plus the RV CDFs keyed by RvKey.
     private sealed class RvSampler
     {
         public readonly HashSet<StatType>[] PrioritizedByPartition;
@@ -218,12 +206,9 @@ public class SimulationService : ISimulationService
         }
     }
 
-    /// <summary>Fast-path keep/dismantle decision for one drop.</summary>
-    /// <returns>
-    /// <c>true</c> when the drop was dismantled and already accounted for.
-    /// <c>false</c> when it should be kept, in which case <paramref name="sampledRv"/> and
-    /// <paramref name="mainStat"/> carry the draws the caller must use to build the disc.
-    /// </returns>
+    // Fast-path keep/dismantle decision for one drop. Returns true when the drop was dismantled
+    // and already accounted for; false when it should be kept, in which case sampledRv and
+    // mainStat carry the draws the caller needs to build the disc.
     private bool TryFastPathDecide(int partition, SimulationRunResult result, RvSampler sampler,
         InventoryRankIndex rankIndex, ref Disc? cachedWeakest,
         out int sampledRv, out StatType mainStat, out int substatCount)
@@ -285,7 +270,7 @@ public class SimulationService : ISimulationService
                 weakestRetainedRv = cachedWeakest == null
                     ? int.MaxValue
                     : cachedWeakest.GetRollValue(
-                        State.GetPrioritizedSubstatsForPartition(cachedWeakest.Partition));
+                        State.GetRunPriorities(cachedWeakest.Partition));
             }
 
             if (cachedWeakest == null)
@@ -317,15 +302,12 @@ public class SimulationService : ISimulationService
         return false;
     }
 
-    /// <summary>
-    /// Indexes every retained disc by roll value so cap evictions do not rescan inventory.
-    /// </summary>
+    // Indexes every retained disc by roll value so cap evictions do not rescan inventory.
     private void RebuildRankIndex(InventoryRankIndex index)
     {
         foreach (var disc in State.Inventory)
         {
-            index.Add(disc, disc.GetRollValue(
-                State.GetPrioritizedSubstatsForPartition(disc.Partition)));
+            index.Add(disc, disc.GetRollValue(State.GetRunPriorities(disc.Partition)));
         }
     }
 
@@ -342,9 +324,13 @@ public class SimulationService : ISimulationService
     {
         State.Inventory.Add(disc);
 
+        // Scored with the run priorities, not the slot list: under an All target those differ,
+        // and the record must agree with the decision that kept the disc.
+        var runPriorities = State.GetRunPriorities(partition);
+
         // Keep the rank index in step with inventory, otherwise its size check treats the
         // index as stale and rebuilds it on the very next drop.
-        rankIndex?.Add(disc, disc.GetRollValue(State.GetPrioritizedSubstatsForPartition(partition)));
+        rankIndex?.Add(disc, disc.GetRollValue(runPriorities));
 
         result.KeptDiscs.Add(disc);
         result.GeneratedDiscs.Add(disc);
@@ -355,25 +341,21 @@ public class SimulationService : ISimulationService
             // Derived from the built substats rather than the sampled RV: the real disc is
             // the source of truth once it exists, and it keeps DropRecords consistent with
             // the inventory a player can inspect.
-            RollValue = disc.GetRollValue(State.GetPrioritizedSubstatsForPartition(partition)),
+            RollValue = disc.GetRollValue(runPriorities),
             DismantleReason = string.Empty
         });
     }
 
 
-    /// <summary>
-    /// Finds the lowest-RV unlocked disc in inventory, or null if all are locked.
-    /// </summary>
-    /// <remarks>
-    /// Reference implementation kept for <see cref="InventoryRankIndex"/> to be validated
-    /// against - the index is an optimization of exactly this scan.
-    /// <para>
-    /// Scored against each disc's own partition priorities, the same measure the incoming
-    /// drop's sampled RV uses. Comparing across partitions is still apples-to-oranges in
-    /// principle, since prioritized sets can differ per slot, but both sides follow one rule.
-    /// With the default priorities, identical across all six slots, the measures coincide.
-    /// </para>
-    /// </remarks>
+    // Finds the lowest-RV unlocked disc in inventory, or null if all are locked.
+    //
+    // Reference implementation kept for InventoryRankIndex to be validated against — the index
+    // is an optimization of exactly this scan.
+    //
+    // Scored with the run priorities, the same measure the incoming drop's sampled RV uses,
+    // so the eviction floor and the keep decision follow one rule. Comparing across partitions
+    // is still apples-to-oranges in principle when slots value different stats, but with the
+    // default priorities, identical across all six slots, the measures coincide.
     private Disc? FindWeakestDisc()
     {
         Disc? weakest = null;
@@ -382,7 +364,7 @@ public class SimulationService : ISimulationService
         foreach (var d in State.Inventory)
         {
             if (d.IsLocked) continue;
-            int rv = d.GetRollValue(State.GetPrioritizedSubstatsForPartition(d.Partition));
+            int rv = d.GetRollValue(State.GetRunPriorities(d.Partition));
             if (rv < weakestRv)
             {
                 weakestRv = rv;
@@ -493,14 +475,10 @@ public class SimulationService : ISimulationService
         return SortFiltered(State.Inventory.Where(MatchesFilter));
     }
 
-    /// <summary>
-    /// Filter, sort, and tally the inventory in one pass.
-    /// </summary>
-    /// <remarks>
-    /// The grid needs the matching discs in sort order plus two batch counts. Separate LINQ
-    /// chains meant five filter-and-sort passes per render on a full inventory, with the RV
-    /// sort calling <see cref="Disc.GetRollValue"/> twice per comparison.
-    /// </remarks>
+    // Filter, sort, and tally the inventory in one pass.
+    // The grid needs the matching discs in sort order plus two batch counts. Separate LINQ
+    // chains meant five filter-and-sort passes per render on a full inventory, with the RV
+    // sort calling Disc.GetRollValue twice per comparison.
     public StorageView GetStorageView()
     {
         var matches = new List<Disc>(State.Inventory.Count);
@@ -523,9 +501,7 @@ public class SimulationService : ISimulationService
         return new StorageView(SortFiltered(matches), nonMatching, selected);
     }
 
-    /// <summary>
-    /// Applies the current sort, computing each key once per disc rather than per comparison.
-    /// </summary>
+    // Applies the current sort, computing each key once per disc rather than per comparison.
     private List<Disc> SortFiltered(IEnumerable<Disc> discs)
     {
         return State.CurrentSort switch
@@ -564,21 +540,18 @@ public class SimulationService : ISimulationService
 
     public void NotifyStateChanged() => OnChange?.Invoke();
 
-    /// <summary>
-    /// Indexes inventory by roll value so cap evictions never rescan it.
-    /// </summary>
-    /// <remarks>
-    /// Roll value is bounded by the substat cap (4), so a few buckets give O(1) lookups.
-    /// <see cref="Count"/> is compared against inventory size to detect drift, since a disc
-    /// can be dismantled or locked elsewhere between drops.
-    /// </remarks>
+    // Indexes inventory by roll value so cap evictions never rescan it.
+    //
+    // Roll value is bounded by the substat cap (4), so a few buckets give O(1) lookups.
+    // Count is compared against inventory size to detect drift, since a disc can be
+    // dismantled or locked elsewhere between drops.
     private sealed class InventoryRankIndex
     {
     private const int BucketCount = 5; // RV 0..4
     private readonly List<Disc>?[] _buckets = new List<Disc>?[BucketCount];
     private readonly HashSet<Disc> _indexed = new();
 
-    /// <summary>Number of discs currently indexed. Compared against inventory size to detect drift.</summary>
+    // Disc count currently indexed. Compared against inventory size to detect drift.
     public int Count => _indexed.Count;
 
     public void Add(Disc disc, int rv)
@@ -590,14 +563,11 @@ public class SimulationService : ISimulationService
         bucket.Add(disc);
     }
 
-    /// <summary>
-    /// Returns the lowest-RV unlocked disc without removing it, or null if all are locked.
-    /// </summary>
-    /// <remarks>
-    /// Deliberately non-destructive. The caller only removes the disc once it is actually
-    /// evicted; if this method mutated the index, its size would drift from inventory's and
-    /// every subsequent drop would trigger a full rebuild.
-    /// </remarks>
+    // Returns the lowest-RV unlocked disc without removing it, or null if all are locked.
+    //
+    // Deliberately non-destructive. The caller only removes the disc once it is actually
+    // evicted; if this mutated the index, its size would drift from inventory's and every
+    // subsequent drop would trigger a full rebuild.
     public Disc? PeekWeakest()
     {
         for (int rv = 0; rv < BucketCount; rv++)
@@ -616,12 +586,8 @@ public class SimulationService : ISimulationService
         return null;
     }
 
-    /// <summary>
-    /// Drops a disc from the index. Call only when it also leaves inventory, so the index
-    /// size keeps matching inventory's.
-    /// </summary>
-    /// <param name="disc">The disc being evicted.</param>
-    /// <param name="rv">Its bucket, which the caller already has cached.</param>
+    // Drops a disc from the index. rv is its bucket, which the caller already has cached.
+    // Call only when the disc also leaves inventory, so the index size keeps matching.
     public void Remove(Disc disc, int rv)
     {
         if (!_indexed.Remove(disc)) return;

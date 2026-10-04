@@ -381,6 +381,56 @@ public class SimulationFastPathTests
     }
 
     [Fact]
+    public void GetRunPriorities_UsesSharedListWhenTargetIsAll()
+    {
+        var state = new SimulationState();
+        state.TargetCleanupPartition = null;
+        state.GetActivePrioritizedSubstats().Add(StatType.AnomalyProficiency);
+
+        // Every slot must be scored against the edited All-slots list, not its own default.
+        foreach (int partition in new[] { 1, 2, 3, 4, 5, 6 })
+        {
+            Assert.Contains(StatType.AnomalyProficiency, state.GetRunPriorities(partition));
+        }
+    }
+
+    [Fact]
+    public void GetRunPriorities_UsesSlotListWhenTargeted()
+    {
+        var state = new SimulationState();
+        state.TargetCleanupPartition = 4;
+
+        // A targeted run scores only that slot, against that slot's list. Identical object:
+        // only partition-4 discs can survive the partition check anyway.
+        Assert.Same(
+            state.GetPrioritizedSubstatsForPartition(4),
+            state.GetRunPriorities(4));
+    }
+
+    [Fact]
+    public async Task RunSimulationAsync_AllTargetWithFourPrioritiesKeepsMinRvFour()
+    {
+        // Repro: Min RV 4 with 4 All-slots priorities kept 0 out of 25M drops, because runs
+        // scored each slot's 3-stat default list (max RV 3) instead of the edited shared list.
+        var service = NewService(out var state);
+        state.TargetCleanupPartition = null;
+        state.MinCleanupRv = 4;
+        state.GetActivePrioritizedSubstats().Add(StatType.AnomalyProficiency);
+
+        var result = await service.RunSimulationAsync(3000 * 60);
+
+        Assert.True(result.KeptDiscs.Count > 0,
+            "Expected some RV-4 survivors out of ~7500 drops; the run scored the wrong list.");
+
+        var shared = state.GetActivePrioritizedSubstats().ToHashSet();
+        foreach (var disc in result.KeptDiscs)
+        {
+            Assert.True(disc.GetRollValue(shared) >= 4,
+                "Every kept disc must reach Min RV under the shared All-slots list.");
+        }
+    }
+
+    [Fact]
     public void AutoDismantleOnSim_IsAlwaysOn()
     {
         var state = new SimulationState { AutoDismantleOnSim = false };

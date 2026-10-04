@@ -153,6 +153,39 @@ public class HypergeometricSamplerTests
         Assert.Equal(1.0, cdf[^1]);
     }
 
+    // ---- RNG safety ---------------------------------------------------------------------
+
+    [Fact]
+    public void DefaultConstructedGenerator_ProducesVaryingOutput()
+    {
+        // Regression guard: the parameterless constructor once left the RNG in its all-zero
+        // state, which can never advance. Every draw returned the same value and the
+        // simulation hung on its first rejection sample. The app froze on Start Cleanup
+        // while every seeded test passed.
+        var generator = new DiscGenerator();
+
+        var partitions = new HashSet<int>();
+        for (int i = 0; i < 100; i++)
+        {
+            int p = generator.NextPartition();
+            Assert.InRange(p, 1, 6);
+            partitions.Add(p);
+        }
+
+        Assert.True(partitions.Count > 1, "RNG appears stuck: 100 identical partitions.");
+    }
+
+    [Fact]
+    public void DefaultConstructedXoshiro_EscapesTheZeroState()
+    {
+        var rng = new Xoshiro128();
+
+        var seen = new HashSet<uint>();
+        for (int i = 0; i < 100; i++) seen.Add(rng.NextUInt32());
+
+        Assert.True(seen.Count > 1, "RNG appears stuck in the all-zero state.");
+    }
+
     // ---- Empirical fidelity -----------------------------------------------------------
 
     [Fact]

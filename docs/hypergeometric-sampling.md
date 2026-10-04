@@ -84,6 +84,15 @@ DEFPercent, CritRate, CritDmg, AnomalyProficiency — 3 of which are prioritized
 For each main stat, build the `k ∈ {3,4}` mixture, then mix the six cases with weight 1/6 each.
 Testing against 120k real generated discs matches within 0.01 on every RV value.
 
+## Which priorities the tables use
+
+Tables are built from `SimulationState.GetRunPriorities(partition)`, not the raw per-slot
+lists. When a target partition is set, those coincide — only that slot can survive the
+partition check anyway. When the target is All, every slot is scored against the shared
+All-slots list (key 0, the one the console editor shows). Scoring per-slot lists there
+silently ignored the player's configuration: with 4 edited priorities but 3 per slot,
+max RV is 3, so Min RV 4 kept 0 out of 25M drops.
+
 ## Sampling
 
 `ToCumulative` turns a PMF into a CDF, forcing the last entry to exactly `1.0` so cumulative

@@ -1,14 +1,12 @@
 namespace DiscDriveSimulator.Services;
 
-/// <summary>xoshiro128** — a small, fast, non-cryptographic PRNG.</summary>
-/// <remarks>
-/// The hot loop pulls millions of doubles, where <see cref="Random"/> pays virtual dispatch
-/// per call. A struct with inlined arithmetic avoids that.
-/// <para>
-/// <b>Not</b> reproducible across platforms: this only feeds a simulator whose results are
-/// distributional, never cryptographic or seed-replayable.
-/// </para>
-/// </remarks>
+// xoshiro128** — a small, fast, non-cryptographic PRNG.
+//
+// The hot loop pulls millions of doubles, where Random pays virtual dispatch per call.
+// A struct with inlined arithmetic avoids that.
+//
+// Not reproducible across platforms: this only feeds a simulator whose results are
+// distributional, never cryptographic or seed-replayable.
 public struct Xoshiro128
 {
     private uint _s0;
@@ -53,6 +51,11 @@ public struct Xoshiro128
 
     public uint NextUInt32()
     {
+        // Safety net for the all-zero state, which xoshiro cannot escape: without this, a
+        // default-constructed instance returns 0 on every draw and Next(min, max) rejects
+        // forever. One OR plus a predictable branch per draw.
+        if ((_s0 | _s1 | _s2 | _s3) == 0) _s3 = 0x9E3779B9;
+
         unchecked
         {
             uint result = Rotl(_s1 * 5, 7) * 9;
@@ -71,19 +74,15 @@ public struct Xoshiro128
 
     private static uint Rotl(uint x, int k) => (x << k) | (x >> (32 - k));
 
-    /// <summary>
-    /// Uniform double in <c>[0, 1)</c>, 32-bit resolution.
-    /// </summary>
-    /// <remarks>
-    /// The only consumer is a binary search over a ≤5-entry CDF, so the mantissa bits a
-    /// 53-bit conversion would add are never resolved.
-    /// </remarks>
+    // Uniform double in [0, 1), 32-bit resolution.
+    // The only consumer is a binary search over a ≤5-entry CDF, so the mantissa bits a
+    // 53-bit conversion would add are never resolved.
     public double NextDouble() => NextUInt32() * (1.0 / 4294967296.0);
 
-    /// <summary>Uniform integer in <c>[0, maxExclusive)</c>.</summary>
+    // Uniform integer in [0, maxExclusive).
     public int Next(int maxExclusive) => Next(0, maxExclusive);
 
-    /// <summary>Uniform integer in <c>[minInclusive, maxExclusive)</c>.</summary>
+    // Uniform integer in [minInclusive, maxExclusive).
     public int Next(int minInclusive, int maxExclusive)
     {
         uint range = (uint)(maxExclusive - minInclusive);
