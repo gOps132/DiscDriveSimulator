@@ -6,6 +6,17 @@
 
 @if (IsOpen)
 {
+    // Same 100/page window as storage. A permissive run can keep thousands of discs, and
+    // rendering them all at once is what made the obtain grid unusable.
+    var totalPages = PagerState.TotalPages(Discs.Count);
+    currentPage = PagerState.ClampPage(currentPage, totalPages);
+
+    var (skip, take) = PagerState.PageWindow(Discs.Count, currentPage);
+    var pageDiscs = skip < Discs.Count
+        ? Discs.GetRange(skip, take)
+        : new List<Disc>();
+    var (rangeStart, rangeEnd) = PagerState.RangeLabel(Discs.Count, currentPage);
+
     <div class="modal-backdrop-overlay obtain-backdrop" @onclick="Close">
         <div class="zzz-modal-window obtain-modal-window" data-watermark="@Source" @onclick:stopPropagation="true">
             <div class="zzz-modal-header">
@@ -35,7 +46,7 @@
                 <div class="obtain-left-section flex min-h-0 flex-col overflow-hidden">
                     <div class="obtain-subtitle">Use @(RunSummary?.Runs ?? 1) times to obtain:</div>
                     <div class="obtain-disc-grid grid content-start overflow-x-hidden overflow-y-auto">
-                        @foreach (var disc in Discs)
+                        @foreach (var disc in pageDiscs)
                         {
                             var isSelected = inspectedDisc?.Id == disc.Id;
                             var record = RunSummary?.DropRecords.FirstOrDefault(r => r.Disc != null && r.Disc.Id == disc.Id);
@@ -48,6 +59,13 @@
                             </div>
                         }
                     </div>
+                    <Pager CurrentPage="currentPage"
+                           TotalPages="totalPages"
+                           RangeStart="rangeStart"
+                           RangeEnd="rangeEnd"
+                           TotalCount="Discs.Count"
+                           AriaLabel="Obtained discs pages"
+                           OnPageChanged="GoToPage" />
                 </div>
 
                 <!-- Right Detail Panel (Templatized Reusable ZZZ Component) -->
@@ -80,16 +98,28 @@
     [Parameter] public SimulationRunResult? RunSummary { get; set; }
 
     private Disc? inspectedDisc;
+    private int currentPage = 1;
+    private bool wasOpen;
 
     protected override void OnParametersSet()
     {
         if (IsOpen)
         {
-            if (inspectedDisc == null || !Discs.Any(d => d.Id == inspectedDisc.Id))
+            bool valid = inspectedDisc != null && Discs.Any(d => d.Id == inspectedDisc.Id);
+            if (!valid)
             {
                 inspectedDisc = Discs.FirstOrDefault();
+                currentPage = 1;
+            }
+            else if (!wasOpen)
+            {
+                // Jump to the inspected disc's page, but only on open. Doing this on every
+                // render would snap the player back whenever they paged away deliberately.
+                int index = Discs.FindIndex(d => d.Id == inspectedDisc.Id);
+                if (index >= 0) currentPage = PagerState.PageForIndex(index);
             }
         }
+        wasOpen = IsOpen;
     }
 
     private void SelectDisc(Disc disc)
@@ -97,12 +127,23 @@
         inspectedDisc = disc;
     }
 
+    private void GoToPage(int page)
+    {
+        currentPage = PagerState.ClampPage(page, PagerState.TotalPages(Discs.Count));
+    }
+
     private async Task DismantleDisc(Disc disc)
     {
         if (Sim.DismantleDisc(disc))
         {
             Discs.Remove(disc);
-            inspectedDisc = Discs.FirstOrDefault();
+            // Clamp rather than reset: dismantling shrinks the list, which can drop the last
+            // page out from under the player, but staying put is less jarring than jumping.
+            // The inspected disc then becomes the first of the visible page, so the detail
+            // panel never shows a disc the grid is not displaying.
+            currentPage = PagerState.ClampPage(currentPage, PagerState.TotalPages(Discs.Count));
+            var (skip, take) = PagerState.PageWindow(Discs.Count, currentPage);
+            inspectedDisc = take > 0 ? Discs[skip] : null;
             await SaveState();
         }
     }

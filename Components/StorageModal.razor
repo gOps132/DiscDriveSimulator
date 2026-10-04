@@ -6,29 +6,27 @@
 
 @if (IsOpen)
 {
-    // One pass over the inventory for the filtered list and both batch counts. On a full
-    // storage this used to be five filter-and-sort passes per render, which dominated
-    // frame time and made every click feel dead.
+    // One pass over the inventory for the filtered list and both batch counts. On a full storage
+    // this used to be five filter-and-sort passes per render, which dominated frame time and
+    // made every click feel dead.
     var view = Sim.GetStorageView();
     var filteredDiscs = view.FilteredDiscs;
     var nonMatchingCount = view.NonMatchingDismantleableCount;
     var selectedCount = view.SelectedCount;
 
-    // Render one page at a time. The full grid is up to MaxInventoryDiscs cards, each a
-    // DiscSlot component plus an image; building all of them at once is what makes a full
-    // storage unusable. Filtering and sorting still run over the whole set, so pages are
-    // just a window onto the same ordered list.
-    // Clamp before paging so a shrunk list cannot leave us past the end.
-    var totalPages = Math.Max(1, (int)Math.Ceiling(filteredDiscs.Count / (double)DiscsPerPage));
-    if (currentPage > totalPages) currentPage = totalPages;
-    if (currentPage < 1) currentPage = 1;
+    // Render one page at a time. The full grid is up to MaxInventoryDiscs cards, each a DiscSlot
+    // component plus an image; building all of them at once is what makes a full storage
+    // unusable. Filtering and sorting still run over the whole set, so pages are just a window
+    // onto the same ordered list. Clamp before paging so a shrunk list cannot leave us past the
+    // end.
+    var totalPages = PagerState.TotalPages(filteredDiscs.Count);
+    currentPage = PagerState.ClampPage(currentPage, totalPages);
 
-    var skip = (currentPage - 1) * DiscsPerPage;
+    var (skip, take) = PagerState.PageWindow(filteredDiscs.Count, currentPage);
     var pageDiscs = skip < filteredDiscs.Count
-        ? filteredDiscs.GetRange(skip, Math.Min(DiscsPerPage, filteredDiscs.Count - skip))
+        ? filteredDiscs.GetRange(skip, take)
         : new List<Disc>();
-    var rangeStart = pageDiscs.Count == 0 ? 0 : skip + 1;
-    var rangeEnd = skip + pageDiscs.Count;
+    var (rangeStart, rangeEnd) = PagerState.RangeLabel(filteredDiscs.Count, currentPage);
 
     <div class="modal-backdrop-overlay" @onclick="Close">
         <div class="zzz-modal-window storage-modal-window" data-watermark="INVENTORY" @onclick:stopPropagation="true">
@@ -171,27 +169,12 @@
                             }
                         </div>
 
-                        @if (totalPages > 1)
-                        {
-                            <div class="storage-pager" role="navigation" aria-label="Storage pages">
-                                <button type="button" class="btn-pager-nav"
-                                        disabled="@(currentPage <= 1)"
-                                        @onclick="() => GoToPage(currentPage - 1)"
-                                        aria-label="Previous page">&#8249;</button>
-
-                                <span class="storage-pager-status">
-                                    Page @currentPage of @totalPages
-                                    <span class="storage-pager-range">
-                                        &middot; showing @rangeStart&ndash;@rangeEnd of @filteredDiscs.Count
-                                    </span>
-                                </span>
-
-                                <button type="button" class="btn-pager-nav"
-                                        disabled="@(currentPage >= totalPages)"
-                                        @onclick="() => GoToPage(currentPage + 1)"
-                                        aria-label="Next page">&#8250;</button>
-                            </div>
-                        }
+                        <Pager CurrentPage="currentPage"
+                               TotalPages="totalPages"
+                               RangeStart="rangeStart"
+                               RangeEnd="rangeEnd"
+                               TotalCount="filteredDiscs.Count"
+                               OnPageChanged="GoToPage" />
                     }
                 </div>
 
@@ -212,9 +195,6 @@
 
     private Disc? inspectedStorageDisc;
 
-    /// <summary>Cards rendered per page. Keeps the grid light enough to stay interactive.</summary>
-    private const int DiscsPerPage = 100;
-
     private int currentPage = 1;
 
     protected override void OnParametersSet()
@@ -230,16 +210,11 @@
         currentPage = Math.Max(1, page);
     }
 
-    /// <summary>
-    /// Keeps the inspected disc valid after inventory or filter changes.
-    /// </summary>
-    /// <remarks>
-    /// Uses reference equality for the membership checks. Identity lookups by
-    /// <see cref="Disc.Id"/> meant a full inventory scan on every filter change, and the
-    /// filtered list holds the same <see cref="Disc"/> instances that inventory does, so
-    /// <see cref="object.ReferenceEquals"/> is both correct and O(n) at worst with no
-    /// delegate allocation.
-    /// </remarks>
+    // Keeps the inspected disc valid after inventory or filter changes.
+    //
+    // Membership is checked by reference. Identity lookups by Disc.Id meant a full inventory
+    // scan on every filter change, and the filtered list holds the same Disc instances
+    // inventory does, so ReferenceEquals is both correct and allocation-free.
     private void EnsureValidInspectedDisc()
     {
         var filtered = Sim.GetFilteredDiscs();
@@ -370,14 +345,11 @@
         }
     }
 
-    /// <summary>
-    /// Returns to page 1 after the result set changes shape.
-    /// </summary>
-    /// <remarks>
-    /// Filtering or re-sorting reorders the whole list, so staying on page 7 would show an
-    /// arbitrary slice of the new results. Dismantling also shrinks the list, which can drop
-    /// the last page out from under the player.
-    /// </remarks>
+    // Returns to page 1 after the result set changes shape.
+    //
+    // Filtering or re-sorting reorders the whole list, so staying on page 7 would show an
+    // arbitrary slice of the new results. Dismantling also shrinks the list, which can drop
+    // the last page out from under the player.
     private void ResetPaging()
     {
         currentPage = 1;

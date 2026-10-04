@@ -1,0 +1,53 @@
+@* Shared pager for the storage and obtain disc grids. Both page over an already filtered
+   and sorted list; only the card markup differs, so just the pager is shared. *@
+
+@if (TotalPages > 1)
+{
+    <div class="storage-pager" role="navigation" aria-label="@AriaLabel">
+        <button type="button" class="btn-pager-nav"
+                disabled="@(CurrentPage <= 1)"
+                @onclick="() => GoToPage(CurrentPage - 1)"
+                aria-label="Previous page">&#8249;</button>
+
+        <span class="storage-pager-status">
+            Page @CurrentPage of @TotalPages
+            <span class="storage-pager-range">
+                &middot; showing @RangeStart&ndash;@RangeEnd of @TotalCount
+            </span>
+        </span>
+
+        <button type="button" class="btn-pager-nav"
+                disabled="@(CurrentPage >= TotalPages)"
+                @onclick="() => GoToPage(CurrentPage + 1)"
+                aria-label="Next page">&#8250;</button>
+    </div>
+}
+
+@code {
+    // 1-based page currently shown.
+    [Parameter] public int CurrentPage { get; set; } = 1;
+
+    // Total pages, from PagerState.TotalPages.
+    [Parameter] public int TotalPages { get; set; } = 1;
+
+    // 1-based inclusive window edges, from PagerState.RangeLabel.
+    [Parameter] public int RangeStart { get; set; }
+    [Parameter] public int RangeEnd { get; set; }
+
+    // Full list size, for the "of N" suffix.
+    [Parameter] public int TotalCount { get; set; }
+
+    // Screen-reader label. Defaults to the storage wording.
+    [Parameter] public string AriaLabel { get; set; } = "Storage pages";
+
+    // Fires with the page to show. The caller owns the int and clamps it.
+    [Parameter] public EventCallback<int> OnPageChanged { get; set; }
+
+    private async Task GoToPage(int page)
+    {
+        if (OnPageChanged.HasDelegate)
+        {
+            await OnPageChanged.InvokeAsync(page);
+        }
+    }
+}
